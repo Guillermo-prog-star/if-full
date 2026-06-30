@@ -131,6 +131,13 @@ public class SupportNetworkController {
         return ResponseEntity.ok(service.addNote(familyId, req, supportMemberId));
     }
 
+    @GetMapping("/api/support/assignments/{assignmentId}/access-log")
+    public ResponseEntity<List<com.integrityfamily.support.dto.SupportNetworkDtos.AccessLogEntry>> getAccessLog(
+            @PathVariable Long assignmentId,
+            @AuthenticationPrincipal UserDetails principal) {
+        return ResponseEntity.ok(service.getAccessLog(assignmentId, principal.getUsername()));
+    }
+
     private Long resolveSupportMemberId(String email) {
         return memberRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(

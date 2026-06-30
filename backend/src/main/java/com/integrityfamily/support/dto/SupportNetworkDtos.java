@@ -148,4 +148,17 @@ public class SupportNetworkDtos {
         private String institutionName;
         private String licenseNumber;
     }
+
+    // ── Log de accesos del profesional ────────────────────────────────────
+
+    @Builder
+    @Data
+    public static class AccessLogEntry {
+        private Long id;
+        private Long assignmentId;
+        private String actorEmail;
+        private String action;
+        private String detail;
+        private LocalDateTime createdAt;
+    }
 }

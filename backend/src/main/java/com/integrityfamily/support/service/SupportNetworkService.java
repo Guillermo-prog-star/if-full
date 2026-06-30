@@ -4,7 +4,9 @@ import com.integrityfamily.common.exception.BusinessException;
 import com.integrityfamily.domain.*;
 import com.integrityfamily.domain.repository.*;
 import com.integrityfamily.support.domain.*;
+import com.integrityfamily.support.domain.SupportAccessLog;
 import com.integrityfamily.support.dto.SupportNetworkDtos.*;
+import com.integrityfamily.support.dto.SupportNetworkDtos.AccessLogEntry;
 import com.integrityfamily.support.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,8 @@ public class SupportNetworkService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final EvaluationRepository evaluationRepository;
+    private final FamilySprintRepository sprintRepository;
+    private final SupportAccessLogRepository accessLogRepository;
 
     // ─────────────────────────────────────────────────────────────────────
     // Registro de profesionales (lo hace el admin o el propio profesional)
@@ -327,13 +331,17 @@ public class SupportNetworkService {
 
         if (assignment.isCanViewIcfScore()) {
             level++;
-            evaluationRepository.findTopByFamilyIdAndStatusOrderByFinalizedAtDesc(familyId, EvaluationStatus.FINALIZED)
-                    .ifPresent(ev -> {
-                        view.icfScore(ev.getIcf() != null ? ev.getIcf().doubleValue() : null);
-                        view.riskLevel(ev.getRiskLevel());
-                        view.icfLabel(labelFromIcf(ev.getIcf()));
-                        view.icfDirection("STABLE");
-                    });
+            List<com.integrityfamily.domain.Evaluation> lastTwo =
+                    evaluationRepository.findTop2ByFamilyIdAndStatusOrderByFinalizedAtDesc(familyId, EvaluationStatus.FINALIZED);
+            if (!lastTwo.isEmpty()) {
+                com.integrityfamily.domain.Evaluation latest = lastTwo.get(0);
+                view.icfScore(latest.getIcf() != null ? latest.getIcf().doubleValue() : null);
+                view.riskLevel(latest.getRiskLevel());
+                view.icfLabel(labelFromIcf(latest.getIcf()));
+                view.icfDirection(calcDirection(
+                        latest.getIcf(),
+                        lastTwo.size() > 1 ? lastTwo.get(1).getIcf() : null));
+            }
         }
         if (assignment.isCanViewRiskLevel()) {
             level++;
@@ -344,7 +352,13 @@ public class SupportNetworkService {
         }
         if (assignment.isCanViewSprintProgress()) {
             level++;
-            view.hasActiveSprint(false);
+            sprintRepository.findActiveSprintForFamily(familyId).ifPresentOrElse(
+                sprint -> {
+                    view.hasActiveSprint(true);
+                    view.activeSprintStatus(sprint.getStatus());
+                },
+                () -> view.hasActiveSprint(false)
+            );
         }
         if (assignment.isCanViewCrisisHistory()) {
             level++;
@@ -352,7 +366,62 @@ public class SupportNetworkService {
         }
 
         view.accessLevel(level);
-        return view.build();
+        FamilyDataView result = view.build();
+
+        // Registra el acceso para trazabilidad
+        recordAccess(assignmentId, familyId, email, "DATA_VIEW",
+                "Consultó datos autorizados (nivel " + level + ")");
+
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AccessLogEntry> getAccessLog(Long assignmentId, String email) {
+        SupportNetworkMember member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException("Perfil profesional no encontrado.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        FamilySupportAssignment assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> new BusinessException("Asignación no encontrada.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        if (!assignment.getSupportMember().getId().equals(member.getId())) {
+            throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+        }
+
+        return accessLogRepository.findByAssignmentIdOrderByCreatedAtDesc(assignmentId)
+                .stream()
+                .map(e -> AccessLogEntry.builder()
+                        .id(e.getId())
+                        .assignmentId(e.getAssignmentId())
+                        .actorEmail(e.getActorEmail())
+                        .action(e.getAction())
+                        .detail(e.getDetail())
+                        .createdAt(e.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    private void recordAccess(Long assignmentId, Long familyId, String actorEmail, String action, String detail) {
+        try {
+            accessLogRepository.save(SupportAccessLog.builder()
+                    .assignmentId(assignmentId)
+                    .familyId(familyId)
+                    .actorEmail(actorEmail)
+                    .action(action)
+                    .detail(detail)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("No se pudo registrar acceso en support_access_logs: {}", ex.getMessage());
+        }
+    }
+
+    private String calcDirection(Number current, Number previous) {
+        if (current == null) return "STABLE";
+        if (previous == null) return "STABLE";
+        double diff = current.doubleValue() - previous.doubleValue();
+        if (diff >= 5)  return "IMPROVING";
+        if (diff <= -10) return "CRITICAL_DECLINE";
+        if (diff <= -3) return "DECLINING";
+        return "STABLE";
     }
 
     private String labelFromIcf(Number icf) {

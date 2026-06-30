@@ -164,7 +164,7 @@ export class ProfessionalDashboardComponent implements OnInit {
 
   private loadAudit() {
     const f = this.selected()!;
-    this.http.get<any[]>(`${this.base}/families/${f.familyId}/ecosystem/links/${f.id}/audit`)
+    this.http.get<any[]>(`${this.base}/support/assignments/${f.id}/access-log`)
       .pipe(catchError(() => of([])))
       .subscribe(log => this.auditLog.set(log));
   }

@@ -3,7 +3,16 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
-export type NetworkType = 'FAMILIAR' | 'INSTITUTIONAL' | 'COMMUNITY' | 'TERRITORIAL';
+export type NetworkType = 'FAMILIAR' | 'PROFESSIONAL' | 'INSTITUTIONAL' | 'COMMUNITY' | 'TERRITORIAL';
+
+export interface RegisterParticipantRequest {
+  name: string;
+  networkType: NetworkType;
+  description: string;
+  contactEmail: string;
+  contactPhone: string;
+  website: string;
+}
 export type LinkStatus   = 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED';
 
 export interface EcosystemParticipant {
@@ -104,5 +113,9 @@ export class EcosystemService {
 
   getAuditLog(familyId: number): Observable<AuditEntry[]> {
     return this.http.get<AuditEntry[]>(`${this.base}/families/${familyId}/ecosystem/audit`);
+  }
+
+  registerParticipant(req: RegisterParticipantRequest): Observable<EcosystemParticipant> {
+    return this.http.post<EcosystemParticipant>(`${this.base}/ecosystem/participants`, req);
   }
 }

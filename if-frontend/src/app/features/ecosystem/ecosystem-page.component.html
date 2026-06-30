@@ -219,6 +219,9 @@
 
       <!-- Buscador + filtros -->
       <div class="catalog-toolbar">
+        @if (isAdmin()) {
+          <button class="btn-register-admin" (click)="openRegisterModal()">+ Registrar participante</button>
+        }
         <div class="search-box">
           <span class="search-icon">🔍</span>
           <input class="search-input" type="text" placeholder="Buscar por nombre o descripción…"
@@ -462,6 +465,73 @@
         <button class="btn-secondary" (click)="closeConsentModal()">Cancelar</button>
         <button class="btn-consent" (click)="submitConsent()" [disabled]="actionLoading()">
           @if (actionLoading()) { Procesando… } @else { ✓ Confirmar consentimiento }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL: REGISTRAR PARTICIPANTE (ADMIN) ═══════════════════ -->
+@if (showRegisterModal()) {
+  <div class="modal-backdrop" (click)="closeRegisterModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>➕ Registrar participante</h2>
+        <button class="modal-close" (click)="closeRegisterModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="admin-notice">
+          🔑 Solo visible para administradores. Este participante quedará disponible en el catálogo para todas las familias.
+        </div>
+
+        <label class="field-label">Nombre *</label>
+        <input class="field-input" type="text" placeholder="Ej: Fundación Tejiendo Redes"
+               [value]="registerForm().name"
+               (input)="setRegisterField('name', $any($event.target).value)" />
+
+        <label class="field-label">Tipo de red *</label>
+        <select class="field-input" [value]="registerForm().networkType"
+                (change)="setRegisterField('networkType', $any($event.target).value)">
+          <option value="PROFESSIONAL">🩺 Profesional</option>
+          <option value="FAMILIAR">👨‍👩‍👧 Familiar</option>
+          <option value="INSTITUTIONAL">🏛️ Institucional</option>
+          <option value="COMMUNITY">🤝 Comunitaria</option>
+          <option value="TERRITORIAL">🌍 Territorial</option>
+        </select>
+
+        <label class="field-label">Descripción</label>
+        <textarea class="field-input" rows="2"
+                  placeholder="Breve descripción del participante y su rol de apoyo"
+                  [value]="registerForm().description"
+                  (input)="setRegisterField('description', $any($event.target).value)"></textarea>
+
+        <div class="date-row">
+          <div>
+            <label class="field-label">Email de contacto</label>
+            <input class="field-input" type="email" placeholder="contacto@ejemplo.com"
+                   [value]="registerForm().contactEmail"
+                   (input)="setRegisterField('contactEmail', $any($event.target).value)" />
+          </div>
+          <div>
+            <label class="field-label">Teléfono</label>
+            <input class="field-input" type="tel" placeholder="+57 300 000 0000"
+                   [value]="registerForm().contactPhone"
+                   (input)="setRegisterField('contactPhone', $any($event.target).value)" />
+          </div>
+        </div>
+
+        <label class="field-label">Sitio web</label>
+        <input class="field-input" type="url" placeholder="https://..."
+               [value]="registerForm().website"
+               (input)="setRegisterField('website', $any($event.target).value)" />
+
+        @if (actionErr()) { <div class="msg-error sm">{{ actionErr() }}</div> }
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeRegisterModal()">Cancelar</button>
+        <button class="btn-primary" (click)="submitRegister()"
+                [disabled]="registerLoading() || !registerForm().name.trim()">
+          @if (registerLoading()) { Guardando… } @else { Guardar en catálogo }
         </button>
       </div>
     </div>

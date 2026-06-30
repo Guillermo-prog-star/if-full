@@ -2,9 +2,11 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { FamilyStateService } from '../../core/services/family-state.service';
+import { AuthService } from '../../core/services/auth.service';
 import {
   EcosystemService, EcosystemSummary, EcosystemLink,
-  EcosystemParticipant, NetworkType, EcosystemAccessScope, AuditEntry
+  EcosystemParticipant, NetworkType, EcosystemAccessScope, AuditEntry,
+  RegisterParticipantRequest
 } from '../../core/services/ecosystem.service';
 import { catchError, of } from 'rxjs';
 
@@ -33,6 +35,11 @@ const DEFAULT_SCOPE: EcosystemAccessScope = {
   canReceiveAlerts: false
 };
 
+const DEFAULT_REGISTER: RegisterParticipantRequest = {
+  name: '', networkType: 'PROFESSIONAL', description: '',
+  contactEmail: '', contactPhone: '', website: ''
+};
+
 @Component({
   selector: 'app-ecosystem-page',
   standalone: true,
@@ -42,7 +49,10 @@ const DEFAULT_SCOPE: EcosystemAccessScope = {
 })
 export class EcosystemPageComponent implements OnInit {
   private familyState = inject(FamilyStateService);
+  private auth        = inject(AuthService);
   private svc         = inject(EcosystemService);
+
+  readonly isAdmin = computed(() => this.auth.user()?.role === 'ADMIN');
 
   readonly activeTab    = signal<ActiveTab>('network');
   readonly summary      = signal<EcosystemSummary | null>(null);
@@ -65,6 +75,11 @@ export class EcosystemPageComponent implements OnInit {
   readonly pendingConsentLink = signal<EcosystemLink | null>(null);
   readonly pendingInviteParticipant = signal<EcosystemParticipant | null>(null);
   readonly actionLoading     = signal(false);
+
+  // ── Admin: registro de participante ──────────────────────────────────
+  readonly showRegisterModal  = signal(false);
+  readonly registerForm       = signal<RegisterParticipantRequest>({ ...DEFAULT_REGISTER });
+  readonly registerLoading    = signal(false);
 
   readonly inviteForm = signal<InviteForm>({
     participantId: null,
@@ -235,6 +250,38 @@ export class EcosystemPageComponent implements OnInit {
   setCatalogFilter(f: NetworkType | 'ALL') { this.catalogFilter.set(f); }
   setCatalogSearch(v: string)              { this.catalogSearch.set(v); }
   private clearMessages() { this.actionMsg.set(null); this.actionErr.set(null); }
+
+  // ── Admin: registro de participante ──────────────────────────────────
+  openRegisterModal() {
+    this.registerForm.set({ ...DEFAULT_REGISTER });
+    this.showRegisterModal.set(true);
+    this.clearMessages();
+  }
+  closeRegisterModal() { this.showRegisterModal.set(false); }
+
+  setRegisterField<K extends keyof RegisterParticipantRequest>(key: K, val: RegisterParticipantRequest[K]) {
+    this.registerForm.update(f => ({ ...f, [key]: val }));
+  }
+
+  submitRegister() {
+    const f = this.registerForm();
+    if (!f.name.trim()) return;
+    this.registerLoading.set(true);
+    this.clearMessages();
+    this.svc.registerParticipant(f).pipe(
+      catchError(err => {
+        this.actionErr.set(err?.error?.message ?? 'Error al registrar el participante.');
+        return of(null);
+      })
+    ).subscribe(p => {
+      this.registerLoading.set(false);
+      if (p) {
+        this.showRegisterModal.set(false);
+        this.actionMsg.set(`"${p.name}" agregado al catálogo correctamente.`);
+        this.catalog.update(list => [p, ...list]);
+      }
+    });
+  }
 
   setInviteObjective(v: string)        { this.inviteForm.update(f => ({ ...f, objective: v })); }
   setInviteResponsibilities(v: string) { this.inviteForm.update(f => ({ ...f, responsibilities: v })); }

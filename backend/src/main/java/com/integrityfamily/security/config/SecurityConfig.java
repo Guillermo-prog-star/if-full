@@ -46,10 +46,11 @@ public class SecurityConfig {
         oauthConfig.setAllowCredentials(false);
         source.registerCorsConfiguration("/oauth/alexa/**", oauthConfig);
 
-        // Resto de la API: solo orígenes configurados
+        // Resto de la API: solo orígenes configurados vía app.cors.allowed-origins
         org.springframework.web.cors.CorsConfiguration configuration = new org.springframework.web.cors.CorsConfiguration();
         java.util.List<String> originsList = java.util.Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
+                .filter(s -> !s.isEmpty())
                 .collect(java.util.stream.Collectors.toList());
         configuration.setAllowedOrigins(originsList);
         configuration.setAllowedMethods(java.util.Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));

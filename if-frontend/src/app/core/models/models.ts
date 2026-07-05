@@ -148,6 +148,8 @@ export interface EvaluationResultResponse {
   consciousnessLevel?: number;      // 1-5
   relapseFlags?: string[];
   mirrorFlags?: string[];
+  neuroProfile?: any;
+  inc?: number;
 }
 export interface QuestionResponse { id: number; questionText: string; dimension: string; bloque: string; }
 

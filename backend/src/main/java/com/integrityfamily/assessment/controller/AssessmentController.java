@@ -159,11 +159,11 @@ public class AssessmentController {
         Collections.shuffle(mirrorPool);
         drawQuestions(selected, mirrorPool, 2);
 
-        // --- Pool 5: EXPLORATORY del hito (2) ---
+        // --- Pool 5: TRAJECTORY para probar las nuevas preguntas (4) ---
         List<Question> exploPool = new ArrayList<>(
-            questionRepository.findByMilestoneCodeAndTypeAndActiveTrue(currentMilestone, "EXPLORATORY"));
+            questionRepository.findByTypeAndActiveTrue("TRAJECTORY"));
         Collections.shuffle(exploPool);
-        drawQuestions(selected, exploPool, 2);
+        drawQuestions(selected, exploPool, 4);
 
         // --- Relleno si no se alcanzaron 20 (hito con pocas preguntas) ---
         if (selected.size() < 20) {
@@ -242,6 +242,18 @@ public class AssessmentController {
     }
 
     private EvaluationDtos.EvaluationResponse mapToResponse(com.integrityfamily.domain.repository.EvaluationSummary evaluation) {
+        com.integrityfamily.domain.NeuroProfile profile = null;
+        if (evaluation.getIntegrationScore() != null) {
+            profile = com.integrityfamily.domain.NeuroProfile.builder()
+                .somaticAwareness(evaluation.getSomaticAwareness() != null ? evaluation.getSomaticAwareness() : 0.0)
+                .emotionalAwareness(evaluation.getEmotionalAwareness() != null ? evaluation.getEmotionalAwareness() : 0.0)
+                .cognitiveAwareness(evaluation.getCognitiveAwareness() != null ? evaluation.getCognitiveAwareness() : 0.0)
+                .impulsiveAwareness(evaluation.getImpulsiveAwareness() != null ? evaluation.getImpulsiveAwareness() : 0.0)
+                .pauseCapacity(evaluation.getPauseCapacity() != null ? evaluation.getPauseCapacity() : 0.0)
+                .integrationScore(evaluation.getIntegrationScore())
+                .build();
+        }
+
         return new EvaluationDtos.EvaluationResponse(
             evaluation.getId(),
             evaluation.getFamilyId(),
@@ -250,6 +262,8 @@ public class AssessmentController {
             evaluation.getStartedAt(),
             evaluation.getFinalizedAt(),
             evaluation.getIcf(),
+            evaluation.getInc(),
+            profile,
             evaluation.getRiskLevel(),
             evaluation.getCriticalDimension()
         );
@@ -368,6 +382,18 @@ public class AssessmentController {
     }
 
     private EvaluationDtos.EvaluationResponse mapToResponse(Evaluation evaluation) {
+        com.integrityfamily.domain.NeuroProfile profile = null;
+        if (evaluation.getIntegrationScore() != null) {
+            profile = com.integrityfamily.domain.NeuroProfile.builder()
+                .somaticAwareness(evaluation.getSomaticAwareness() != null ? evaluation.getSomaticAwareness() : 0.0)
+                .emotionalAwareness(evaluation.getEmotionalAwareness() != null ? evaluation.getEmotionalAwareness() : 0.0)
+                .cognitiveAwareness(evaluation.getCognitiveAwareness() != null ? evaluation.getCognitiveAwareness() : 0.0)
+                .impulsiveAwareness(evaluation.getImpulsiveAwareness() != null ? evaluation.getImpulsiveAwareness() : 0.0)
+                .pauseCapacity(evaluation.getPauseCapacity() != null ? evaluation.getPauseCapacity() : 0.0)
+                .integrationScore(evaluation.getIntegrationScore())
+                .build();
+        }
+
         return new EvaluationDtos.EvaluationResponse(
             evaluation.getId(),
             evaluation.getFamily().getId(),
@@ -376,6 +402,8 @@ public class AssessmentController {
             evaluation.getStartedAt(),
             evaluation.getFinalizedAt(),
             evaluation.getIcf(),
+            evaluation.getInc(),
+            profile,
             evaluation.getRiskLevel(),
             evaluation.getCriticalDimension()
         );

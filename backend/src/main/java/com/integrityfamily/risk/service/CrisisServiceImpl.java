@@ -205,7 +205,7 @@ public class CrisisServiceImpl implements CrisisService {
                     .icf(penalizedIcf)
                     .riskLevel("CRITICO")
                     .hasCrisis(true)
-                    .consciousnessLevel(5)
+                    .consciousnessLevel(1)
                     .consciousnessLabel("Inconsciente")
                     .createdAt(LocalDateTime.now())
                     .build();

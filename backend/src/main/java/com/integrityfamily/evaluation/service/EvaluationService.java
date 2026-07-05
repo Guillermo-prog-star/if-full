@@ -164,6 +164,14 @@ public class EvaluationService {
                 if (a.questionId() == null) continue;
                 Question q = questionMap.get(a.questionId());
                 if (q == null) continue;
+                
+                Integer val = a.getEffectiveValue();
+                if (val != null && val == 0) {
+                    if (!"NEURO_AWARENESS".equals(q.getType()) || !"ENTRY".equalsIgnoreCase(q.getPhase())) {
+                        throw new IllegalArgumentException("El valor 0 solo está permitido para preguntas NEURO_AWARENESS en fase ENTRY. Pregunta inválida: " + q.getQuestionKey());
+                    }
+                }
+                
                 EvaluationAnswer answer = new EvaluationAnswer();
                 answer.setEvaluation(existing);
                 answer.setQuestionKey(q.getQuestionKey() != null ? q.getQuestionKey() : "Q-" + q.getId());
@@ -190,6 +198,15 @@ public class EvaluationService {
         RiskAlgoV1Engine.AlgoResult algo = riskAlgoV1Engine.compute(effectiveAnswers, currentMilestone);
 
         existing.setIcf(algo.healthyIndex());
+        existing.setInc(algo.inc());
+        if (algo.neuroProfile() != null) {
+            existing.setSomaticAwareness(algo.neuroProfile().getSomaticAwareness());
+            existing.setEmotionalAwareness(algo.neuroProfile().getEmotionalAwareness());
+            existing.setCognitiveAwareness(algo.neuroProfile().getCognitiveAwareness());
+            existing.setImpulsiveAwareness(algo.neuroProfile().getImpulsiveAwareness());
+            existing.setPauseCapacity(algo.neuroProfile().getPauseCapacity());
+            existing.setIntegrationScore(algo.neuroProfile().getIntegrationScore());
+        }
         existing.setRiskLevel(algo.riskLevel());
         existing.setCriticalDimension(algo.criticalDimension());
         existing.setHasCrisis(algo.hasCrisis());
@@ -264,8 +281,9 @@ public class EvaluationService {
                         .collect(Collectors.toList()),
                 algo.healthyIndex(),
                 null,   // riskSnapshotId — lo llena RiskService async
-                saved.getSpiritualSynthesis(),
                 algo.hasCrisis(),
+                algo.inc(),
+                algo.neuroProfile(),
                 algo.simulationSuspected(),
                 algo.relapseDetected(),
                 algo.suggestedMissionGenerator(),

@@ -37,6 +37,13 @@ export interface FinalizeRequest {
 
 // ── Modelo de pregunta ────────────────────────────────────────────────────────
 
+export interface QuestionOption {
+  id?: number;
+  text: string;
+  scoreValue: number;
+}
+
+
 export interface Question {
   id: number;
   dimension: string;
@@ -48,6 +55,7 @@ export interface Question {
 
   // --- Nueva Taxonomía del Modelo Híbrido Adaptativo ---
   questionKey?: string;
+  parentKey?: string;
   pillar?: string;
   phase?: string;
   type?: string; // CORE, ADAPTIVE, FASE_PILLAR, MIRROR, EXPLORATORY
@@ -65,6 +73,9 @@ export interface Question {
   memberType?: string;
   riskType?: string;
   missionGenerator?: string;
+  
+  // --- Opciones Neuro-Conductuales (Dinámicas) ---
+  options?: QuestionOption[];
 }
 // ── Progreso por pilar ────────────────────────────────────────────────────────
 

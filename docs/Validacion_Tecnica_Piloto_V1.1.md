@@ -104,4 +104,16 @@ Con el cierre del Hito V1.1, la unidad técnica se congela temporalmente. Los si
 * No se realizarán adaptaciones metodológicas en la arquitectura hasta no contar con el volumen de evidencia que sustente el paso a V88 (estados de MASTER_VALIDATED).
 
 ---
+
+## 7. Reglas de Evolución Post-Piloto
+
+> [!IMPORTANT]
+> **Regla V1.1.1: Evolución Basada en Evidencia**
+> Ningún cambio al banco de escenarios (`scenario_bank`) podrá realizarse directamente por intuición.
+> 
+> Todo cambio futuro deberá originarse en evidencia real recolectada en `scenario_validation_log` durante este piloto. La evidencia deberá analizarse, aprobarse y aplicarse bajo un esquema estricto de versionado (v1.1.x, v1.2, etc.).
+> 
+> Esta regla convierte a *Integrity Family* en un **instrumento versionado, reproducible y científicamente auditable**.
+
+---
 *Documento generado automatizadamente para certificación del cierre técnico.*

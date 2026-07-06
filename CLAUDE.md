@@ -269,7 +269,11 @@ Dashboard: https://sonarcloud.io/project/overview?id=Guillermo-prog-star_if-full
 - FK nullable (`NULL ok`) cuando la relación es opcional (ej: V65, V67)
 - `ADD COLUMN IF NOT EXISTS` es MariaDB — en MySQL 8.x usar procedure con `information_schema` (ver V68)
 - V69 es un snapshot idempotente de producción 2026-06-16 con `CREATE TABLE IF NOT EXISTS`
-- Próximo número disponible: **V76**
+- V83–V88 — banco NEURO_AWARENESS (opciones dinámicas, pilotos, banco maestro 60 preguntas)
+- V89–V93 — SCENARIO_V1_2 (micro-simulaciones): `questions.phase_prompt` y `question_options.rubric_level`
+- V94–V95 — SCENARIO_V1_2 batches 3–4 (más escenarios del Contrato Metodológico Gold Standard)
+- V96 — Modelo de Determinantes Transformacionales (borrador/hipótesis): tablas `transformational_determinants` (4 ejes: PATRIMONIO, ENTORNO, DINAMICA, ECOSISTEMA_APOYO) y `risk_trajectory_determinants` (bridge N:N, `role` PRIMARY/SECONDARY) sobre el Banco de Trayectorias (V75). No reemplaza `macrodomain`; el mapeo se hizo por trayectoria individual porque a nivel de macrodominio solo 3 de 9 encajaban 1:1 (los otros son crosscutting, ej. SALUD_MENTAL/ADICCIONES). Pendiente de validación empírica antes de usarse como verdad del modelo.
+- Próximo número disponible: **V97**
 
 ---
 
@@ -291,3 +295,25 @@ Integrity Family es una plataforma de acompañamiento familiar que:
 - Construye **documentales familiares** (fuente: misiones, eventos espontáneos, memorias)
 - Mantiene un **gemelo digital** de la familia para simulación y predicción
 - Guarda el **linaje, legado y ADN cultural** de cada familia
+
+---
+
+## Ruta de Conciencia Familiar — escala de respuesta oficial
+
+Componente metodológico central de Integrity Family. Reemplaza las escalas de frecuencia ("Nunca/A veces/Siempre") por una escala de **nivel de conciencia**: no mide cuántas veces ocurre algo, sino qué tan consciente está la familia de esa realidad.
+
+**Fuente única de verdad:** [`rutaConcienciaDomain.ts`](if-frontend/src/domain/constants/rutaConcienciaDomain.ts) → `RUTA_CONCIENCIA_SCALE`. Consumida por `getCustomOptions()` en [`evaluation.component.ts`](if-frontend/src/app/features/evaluation/evaluation.component.ts).
+
+| Nivel interno (`state`) | Respuesta visible para la familia |
+|---|---|
+| `INCONSCIENTE` | Aún no logro reconocer esta realidad en nuestra familia. |
+| `REACTIVO` | Empiezo a darme cuenta, pero normalmente cuando la situación ya pasó. |
+| `CONSCIENTE` | Reconozco esta realidad cuando ocurre. |
+| `INTENCIONAL` | Cuando la reconozco, procuro actuar para fortalecerla o transformarla. |
+| `PLENO` | Esta forma de vivir ya hace parte natural de nuestra familia. |
+
+**Reglas:**
+- Es **una sola escala genérica** para las 4 dimensiones del ICF (emociones, comunicación, hábitos, tiempos) y para cualquier escenario evaluado — el texto de la pregunta ya aporta el contexto específico, la respuesta solo describe el estado de conciencia.
+- El `state` interno (`INCONSCIENTE`…`PLENO`) **nunca se expone al usuario** — el frontend solo renderiza `text` (ver patrón ya usado en el modo `NEURO_AWARENESS`, que oculta `label` deliberadamente).
+- El modelo `NEURO_AWARENESS`/`TRAJECTORY` (Señal Corporal → Conciencia → Acción, mismo archivo `evaluation.component.ts`) es un modelo epistemológico distinto y **no** se unificó con esta escala — usa sus propias 5 opciones centradas en la señal corporal.
+- Antes de este refactor existían 5 variantes hardcodeadas casi idénticas (una por dimensión + `PRESENCE_SCALE` para tiempos + fallback). Se consolidaron en una sola constante; no se debe volver a bifurcar por dimensión.

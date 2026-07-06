@@ -113,78 +113,43 @@
           {{ scenarios[currentIndex].textBase }}
         </h2>
 
-        <!-- Renderizar Fases (ENTRY, TIMING, ACTION) o pregunta legacy -->
+        <!-- Renderizar Fases (dinámico: 3 fases legado ENTRY/TIMING/ACTION o
+             hasta 5 fases NOTICE/THINK/ACT/AFTERMATH/EFFECT de SCENARIO_V1_2) -->
         <div class="scenario-phases">
-          
-          @if (scenarios[currentIndex].entry) {
-            <div class="phase-section" [class.answered]="answers.has(scenarios[currentIndex].entry!.id)">
-              <h3 class="phase-title">1. Señal Inicial</h3>
-              <div class="phase-guidance">
-                <span class="phase-guidance-icon">{{ getPhaseGuidance('ENTRY').icon }}</span>
-                <div>
-                  <strong class="phase-guidance-title">{{ getPhaseGuidance('ENTRY').title }}</strong>
-                  <p class="phase-guidance-text">{{ getPhaseGuidance('ENTRY').text }}</p>
+          @for (phase of scenarios[currentIndex].phases; track phase.id; let i = $index) {
+            @if (i === 0 || answers.has(scenarios[currentIndex].phases[i - 1].id)) {
+              <div class="phase-section" [class.answered]="answers.has(phase.id)">
+                @if (getPhaseLabel(phase.phase!); as pl) {
+                  <h3 class="phase-title">{{ pl.title }}</h3>
+                  <div class="phase-guidance">
+                    <span class="phase-guidance-icon">{{ pl.icon }}</span>
+                    <div>
+                      <strong class="phase-guidance-title">{{ pl.title }}</strong>
+                      <p class="phase-guidance-text">{{ pl.text }}</p>
+                    </div>
+                  </div>
+                }
+                @if ((phase.phasePrompt || phase.text) !== scenarios[currentIndex].textBase) {
+                  <p class="phase-desc">{{ phase.phasePrompt || phase.text }}</p>
+                }
+                <div class="options-row experiential-scale" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                  @for (opt of getCustomOptions(phase); track opt.score) {
+                    <div class="phase-option experiential-card"
+                         [class.active]="answers.get(phase.id) === opt.score"
+                         (click)="selectAnswer(opt.score, phase.id)"
+                         [style.--active-shadow-color]="opt.hexColor || '#8b5cf6'"
+                         [style.--active-border-color]="opt.hexColor || '#8b5cf6'"
+                         style="display: flex; flex-direction: column; padding: 15px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; background: rgba(30, 41, 59, 0.4); text-align: center; height: 100%;">
+                      @if (opt.icon) {
+                        <div class="level-header" style="font-size: 1.4rem; margin-bottom: 5px;">{{ opt.icon }}</div>
+                      }
+                      <div class="level-desc" style="font-size: 0.85rem; color: #cbd5e1; flex-grow: 1;">{{ opt.text || opt.label }}</div>
+                    </div>
+                  }
                 </div>
               </div>
-              <p class="phase-desc">{{ scenarios[currentIndex].entry!.text }}</p>
-              <div class="options-row">
-                @for (opt of getCustomOptions(scenarios[currentIndex].entry!); track opt.score) {
-                  <button type="button" (click)="selectAnswer(opt.score, scenarios[currentIndex].entry!.id)"
-                          class="phase-option" [class.active]="answers.get(scenarios[currentIndex].entry!.id) === opt.score"
-                          [style.--active-shadow-color]="opt.hexColor" [style.--active-border-color]="opt.hexColor">
-                    {{ opt.text || opt.label || opt.score }}
-                  </button>
-                }
-              </div>
-            </div>
+            }
           }
-
-          @if (scenarios[currentIndex].timing) {
-            <div class="phase-section" [class.answered]="answers.has(scenarios[currentIndex].timing!.id)">
-              <h3 class="phase-title">2. Espacio de Consciencia</h3>
-              <div class="phase-guidance">
-                <span class="phase-guidance-icon">{{ getPhaseGuidance('TIMING').icon }}</span>
-                <div>
-                  <strong class="phase-guidance-title">{{ getPhaseGuidance('TIMING').title }}</strong>
-                  <p class="phase-guidance-text">{{ getPhaseGuidance('TIMING').text }}</p>
-                </div>
-              </div>
-              <p class="phase-desc">{{ scenarios[currentIndex].timing!.text }}</p>
-              <div class="options-row">
-                @for (opt of getCustomOptions(scenarios[currentIndex].timing!); track opt.score) {
-                  <button type="button" (click)="selectAnswer(opt.score, scenarios[currentIndex].timing!.id)"
-                          class="phase-option" [class.active]="answers.get(scenarios[currentIndex].timing!.id) === opt.score"
-                          [style.--active-shadow-color]="opt.hexColor" [style.--active-border-color]="opt.hexColor">
-                    {{ opt.text || opt.label || opt.score }}
-                  </button>
-                }
-              </div>
-            </div>
-          }
-
-          @if (scenarios[currentIndex].action) {
-            <div class="phase-section" [class.answered]="answers.has(scenarios[currentIndex].action!.id)">
-              <h3 class="phase-title">3. Respuesta</h3>
-              <div class="phase-guidance">
-                <span class="phase-guidance-icon">{{ getPhaseGuidance('ACTION').icon }}</span>
-                <div>
-                  <strong class="phase-guidance-title">{{ getPhaseGuidance('ACTION').title }}</strong>
-                  <p class="phase-guidance-text">{{ getPhaseGuidance('ACTION').text }}</p>
-                </div>
-              </div>
-              <p class="phase-desc">{{ scenarios[currentIndex].action!.text }}</p>
-              <div class="options-row">
-                @for (opt of getCustomOptions(scenarios[currentIndex].action!); track opt.score) {
-                  <button type="button" (click)="selectAnswer(opt.score, scenarios[currentIndex].action!.id)"
-                          class="phase-option" [class.active]="answers.get(scenarios[currentIndex].action!.id) === opt.score"
-                          [style.--active-shadow-color]="opt.hexColor" [style.--active-border-color]="opt.hexColor">
-                    {{ opt.text || opt.label || opt.score }}
-                  </button>
-                }
-              </div>
-            </div>
-          }
-
         </div>
 
         <!-- Botón de Siguiente Escenario -->

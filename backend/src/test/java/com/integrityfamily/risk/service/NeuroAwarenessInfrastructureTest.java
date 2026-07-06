@@ -42,6 +42,7 @@ class NeuroAwarenessInfrastructureTest {
         neuroQ.setText("Contexto: Situación de estrés...");
         neuroQ.setType("NEURO_AWARENESS");
         neuroQ.setDimension("comunicacion");
+        neuroQ.setPhase("ACTION"); // Solo TIMING/ACTION aportan al promedio INC (ver RiskAlgoV1Engine)
         
         QuestionOption opt1 = new QuestionOption();
         opt1.setQuestion(neuroQ);

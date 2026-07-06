@@ -58,7 +58,8 @@ export interface Question {
   parentKey?: string;
   pillar?: string;
   phase?: string;
-  type?: string; // CORE, ADAPTIVE, FASE_PILLAR, MIRROR, EXPLORATORY
+  phasePrompt?: string;
+  type?: string; // CORE, ADAPTIVE, FASE_PILLAR, MIRROR, EXPLORATORY, SCENARIO_V1_2
   severityWeight?: number;
   detectsRelapse?: boolean;
   requiresEvidence?: boolean;

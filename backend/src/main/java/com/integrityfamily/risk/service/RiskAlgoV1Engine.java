@@ -131,7 +131,7 @@ public class RiskAlgoV1Engine {
                 if (q == null) continue;
 
                 int rawValue       = a.getEffectiveValue();
-                String dim         = normalizeDimension(q.getDimension());
+                String dim         = normalizeDimension(resolveDimensionSource(q));
                 boolean isMirrorType = "MIRROR".equalsIgnoreCase(q.getType());
 
                 // ── Preguntas de control MIRROR (type="MIRROR") ──────────────
@@ -148,11 +148,12 @@ public class RiskAlgoV1Engine {
                     continue; // no contribuye al ICF
                 }
 
-                if ("NEURO_AWARENESS".equalsIgnoreCase(q.getType())) {
+                if ("NEURO_AWARENESS".equalsIgnoreCase(q.getType()) || "SCENARIO_V1_2".equalsIgnoreCase(q.getType())) {
                     neuroCount++;
-                    
-                    // Solo Q2 y Q3 aportan al promedio escalar lineal (inc)
-                    if ("TIMING".equalsIgnoreCase(q.getPhase()) || "ACTION".equalsIgnoreCase(q.getPhase())) {
+
+                    // Solo Q2 y Q3 (o su equivalente fenomenológico THINK/ACT) aportan al promedio escalar lineal (inc)
+                    if ("TIMING".equalsIgnoreCase(q.getPhase()) || "ACTION".equalsIgnoreCase(q.getPhase())
+                            || "THINK".equalsIgnoreCase(q.getPhase()) || "ACT".equalsIgnoreCase(q.getPhase())) {
                         incNeuroCount++;
                         incNeuroSum += rawValue;
                     }
@@ -382,7 +383,29 @@ public class RiskAlgoV1Engine {
     private String normalizeDimension(String raw) {
         if (raw == null) return "emociones";
         String d = raw.toLowerCase().trim();
+        // Alias de las micro-simulaciones V1.2: el campo `pillar` usa formas
+        // singulares (tiempo, emocion) que no coinciden con las 4 dimensiones ICF.
+        if (d.equals("tiempo")) d = "tiempos";
+        if (d.equals("emocion")) d = "emociones";
         return DIMENSIONS.contains(d) ? d : "emociones";
+    }
+
+    /**
+     * Para preguntas de micro-simulación (V1.2) el tema real vive en `pillar`
+     * (comunicacion/habitos/tiempo/emocion/...), no en `dimension` — esa columna
+     * quedó fija en "Comportamiento" desde V90. Sin este fallback, RiskAlgoV1Engine
+     * mandaba el 100% de estas respuestas al bucket "emociones" por defecto.
+     *
+     * NOTA: pillares fuera de las 4 dimensiones ICF (normas, conexion, confianza,
+     * responsabilidad, respeto — usados en Batch 2/V93) siguen sin mapeo clínico
+     * definido y caerán en el fallback "emociones" de normalizeDimension() hasta
+     * que se decida a qué dimensión ICF pertenecen.
+     */
+    private String resolveDimensionSource(Question q) {
+        if (q.getPillar() != null && "Comportamiento".equalsIgnoreCase(q.getDimension())) {
+            return q.getPillar();
+        }
+        return q.getDimension();
     }
 
     // ─── Resultado ─────────────────────────────────────────────────────────────

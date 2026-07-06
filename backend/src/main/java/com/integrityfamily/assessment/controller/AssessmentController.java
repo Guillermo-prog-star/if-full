@@ -159,11 +159,23 @@ public class AssessmentController {
         Collections.shuffle(mirrorPool);
         drawQuestions(selected, mirrorPool, 2);
 
-        // --- Pool 5: TRAJECTORY para probar las nuevas preguntas (4) ---
-        List<Question> exploPool = new ArrayList<>(
-            questionRepository.findByTypeAndActiveTrue("TRAJECTORY"));
-        Collections.shuffle(exploPool);
-        drawQuestions(selected, exploPool, 4);
+        // --- Pool 5: SCENARIO_V1_2 Micro-Simulations (5) ---
+        List<Question> allScenarios = questionRepository.findByTypeAndActiveTrue("SCENARIO_V1_2");
+        if (!allScenarios.isEmpty()) {
+            java.util.List<String> parentKeys = allScenarios.stream()
+                .map(Question::getParentKey)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+            if (!parentKeys.isEmpty()) {
+                Collections.shuffle(parentKeys);
+                String selectedParentKey = parentKeys.get(0);
+                List<Question> scenarioQuestions = allScenarios.stream()
+                    .filter(q -> selectedParentKey.equals(q.getParentKey()))
+                    .collect(java.util.stream.Collectors.toList());
+                selected.addAll(scenarioQuestions);
+            }
+        }
 
         // --- Relleno si no se alcanzaron 20 (hito con pocas preguntas) ---
         if (selected.size() < 20) {

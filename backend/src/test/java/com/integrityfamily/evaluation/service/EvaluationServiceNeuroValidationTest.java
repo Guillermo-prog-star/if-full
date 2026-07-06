@@ -9,6 +9,7 @@ import com.integrityfamily.domain.repository.EvaluationRepository;
 import com.integrityfamily.domain.repository.QuestionRepository;
 import com.integrityfamily.dto.EvaluationDtos;
 import com.integrityfamily.risk.service.RiskAlgoV1Engine;
+import com.integrityfamily.scanner.service.DeterministicExplanationPipeline;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +43,8 @@ public class EvaluationServiceNeuroValidationTest {
     private AssessmentAnswerService assessmentAnswerService;
     @Mock
     private EvaluationRepository evaluationRepository;
+    @Mock
+    private DeterministicExplanationPipeline explanationPipeline;
 
     @InjectMocks
     private EvaluationService evaluationService;
@@ -52,8 +56,12 @@ public class EvaluationServiceNeuroValidationTest {
         Family f = new Family();
         f.setCurrentMilestone("MILESTONE_1");
         ev.setFamily(f);
-        
+
         lenient().when(evaluationRepository.findById(1L)).thenReturn(Optional.of(ev));
+        // finalize() persiste vía save() antes de leer saved.getFamily()/getId() en
+        // processPostFinalization() — sin este stub, saved queda null y NPEa fuera
+        // de los bloques try/catch "no bloqueante" que protegen el resto del método.
+        lenient().when(evaluationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -130,7 +138,7 @@ public class EvaluationServiceNeuroValidationTest {
         when(questionRepository.findAllById(anyList())).thenReturn(List.of(q));
         when(evaluationAnswerRepository.countByEvaluationId(1L)).thenReturn(0L);
         when(riskAlgoV1Engine.compute(anyList(), any())).thenReturn(
-                new RiskAlgoV1Engine.AlgoResult(null, 100.0, 0.0, null, "BAJO", "emociones", false, false, "ESTABLE", "Agencia", 5, List.of(), List.of(), null)
+                new RiskAlgoV1Engine.AlgoResult(Map.of("emociones", 100.0), 100.0, 0.0, null, "BAJO", "emociones", false, false, "ESTABLE", "Agencia", 5, List.of(), List.of(), null)
         );
 
         EvaluationDtos.EvaluationFinalizeRequest request = new EvaluationDtos.EvaluationFinalizeRequest(

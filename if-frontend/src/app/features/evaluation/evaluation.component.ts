@@ -8,7 +8,7 @@ import { NarrativeCompanionComponent } from '../../shared/components/narrative-c
 import { FamilyStateService } from '../../core/services/family-state.service';
 import { getFallbackQuestions } from '../../core/data/fallback-questions';
 import { catchError, EMPTY } from 'rxjs';
-import { PRESENCE_SCALE } from '../../../domain/constants/presenceScaleDomain';
+import { RUTA_CONCIENCIA_SCALE } from '../../../domain/constants/rutaConcienciaDomain';
 import { environment } from '../../../environments/environment';
 
 export interface Scenario {
@@ -18,9 +18,7 @@ export interface Scenario {
   type?: string;
   area?: string;
   severityWeight?: number;
-  entry?: Question;
-  timing?: Question;
-  action?: Question;
+  phases: Question[];
 }
 
 
@@ -138,21 +136,22 @@ export class EvaluationComponent implements OnInit {
       if (q.parentKey) {
         let sc = map.get(q.parentKey);
         if (!sc) {
-          // Extraemos el texto base quitando " (Momento...)"
+          // Quita el sufijo " (Momento de entrada)" que agregan las preguntas
+          // NEURO_AWARENESS legado. Las preguntas SCENARIO_V1_2 no lo llevan
+          // (usan `phasePrompt` aparte), así que el regex es un no-op para ellas.
           const textBase = q.text.replace(/\s*\(.*?\)\s*/g, '').trim();
-          sc = { 
-            parentKey: q.parentKey, 
-            dimension: q.dimension, 
+          sc = {
+            parentKey: q.parentKey,
+            dimension: q.dimension,
             textBase,
             type: q.type,
             area: q.area,
-            severityWeight: q.severityWeight
+            severityWeight: q.severityWeight,
+            phases: []
           };
           map.set(q.parentKey, sc);
         }
-        if (q.phase === 'ENTRY') sc.entry = q;
-        else if (q.phase === 'TIMING') sc.timing = q;
-        else if (q.phase === 'ACTION') sc.action = q;
+        sc.phases.push(q);
       } else {
         oldStyle.push({
           parentKey: q.id.toString(),
@@ -161,10 +160,15 @@ export class EvaluationComponent implements OnInit {
           type: q.type,
           area: q.area,
           severityWeight: q.severityWeight,
-          action: q // Usamos action como default para legacy
+          phases: [q]
         });
       }
     }
+
+    for (const sc of map.values()) {
+      sc.phases.sort((a, b) => a.id - b.id);
+    }
+
     this.scenarios = Array.from(map.values()).concat(oldStyle);
   }
 
@@ -181,16 +185,13 @@ export class EvaluationComponent implements OnInit {
         }
       });
 
-      // Avanzar al índice de la primera pregunta sin responder
-      const firstUnanswered = this.scenarios.findIndex(sc => (sc.entry && !this.answers.has(sc.entry.id)) || (sc.timing && !this.answers.has(sc.timing.id)) || (sc.action && !this.answers.has(sc.action.id)));
+      // Avanzar al índice del primer escenario con alguna fase sin responder
+      const firstUnanswered = this.scenarios.findIndex(sc => sc.phases.some(p => !this.answers.has(p.id)));
 
       // Reconstruir scenarioCompleted para escenarios ya resueltos
       for (let i = 0; i < this.scenarios.length; i++) {
         const s = this.scenarios[i];
-        const entryOk = !s.entry || this.answers.has(s.entry.id);
-        const timingOk = !s.timing || this.answers.has(s.timing.id);
-        const actionOk = !s.action || this.answers.has(s.action.id);
-        if (entryOk && timingOk && actionOk) {
+        if (s.phases.every(p => this.answers.has(p.id))) {
           this.scenarioCompleted.add(s.parentKey);
         }
       }
@@ -219,7 +220,7 @@ export class EvaluationComponent implements OnInit {
 
   /**
    * Registro explícito de escenarios completados.
-   * Un escenario se marca como completed cuando sus 3 fases quedan respondidas.
+   * Un escenario se marca como completed cuando todas sus fases quedan respondidas.
    * Se usa como criterio de avance y como evidencia auditable.
    */
   scenarioCompleted: Set<string> = new Set();
@@ -283,10 +284,7 @@ export class EvaluationComponent implements OnInit {
   canAdvance(): boolean {
     const sc = this.scenarios[this.currentIndex];
     if (!sc) return false;
-    if (sc.entry && !this.answers.has(sc.entry.id)) return false;
-    if (sc.timing && !this.answers.has(sc.timing.id)) return false;
-    if (sc.action && !this.answers.has(sc.action.id)) return false;
-    return true;
+    return sc.phases.length > 0 && sc.phases.every(p => this.answers.has(p.id));
   }
 
   /** Verificar si un escenario específico está completado */
@@ -474,29 +472,50 @@ export class EvaluationComponent implements OnInit {
   }
 
   /**
-   * Devuelve la guía experiencial específica para cada fase de la tríada.
-   * Orienta al usuario a responder desde su cuerpo, emociones y pensamientos.
+   * Guía experiencial por fase. Cubre tanto el modelo legado de 3 fases
+   * (ENTRY/TIMING/ACTION, banco NEURO_AWARENESS) como el modelo dinámico
+   * de hasta 5 fases de SCENARIO_V1_2 (NOTICE/THINK/ACT/AFTERMATH/EFFECT).
    */
-  getPhaseGuidance(phase: 'ENTRY' | 'TIMING' | 'ACTION'): { icon: string; title: string; text: string } {
-    switch (phase) {
+  getPhaseLabel(phaseName: string): { icon: string; title: string; text: string } | null {
+    switch (phaseName) {
       case 'ENTRY':
+      case 'NOTICE':
         return {
           icon: '🫀',
-          title: '¿Qué sucede primero en usted?',
+          title: '1. Señal Inicial',
           text: 'Observe su cuerpo: ¿siente tensión, calor, nudo en el estómago, aceleración del corazón? Responda desde esa primera señal física, no desde lo que piensa que debería sentir.'
         };
       case 'TIMING':
+      case 'THINK':
         return {
           icon: '🧠',
-          title: '¿Qué pasa entre la señal y su reacción?',
+          title: '2. Espacio de Consciencia',
           text: 'Note sus emociones y pensamientos: ¿hay miedo, frustración, urgencia? ¿Logra hacer una pausa o la reacción es automática? Responda desde lo que realmente ocurre, no desde lo ideal.'
         };
       case 'ACTION':
+      case 'ACT':
         return {
           icon: '🤲',
-          title: '¿Cómo responde habitualmente?',
+          title: '3. Respuesta',
           text: 'Piense en lo que hace normalmente en esta situación — no en lo que le gustaría hacer. ¿Cómo actúa su cuerpo, sus palabras, su tono? Sea honesto con su patrón real.'
         };
+      case 'AFTERMATH':
+        return {
+          icon: '🌊',
+          title: '4. Consecuencia Inmediata',
+          text: 'Describa cómo evolucionó la interacción durante los minutos siguientes.'
+        };
+      case 'EFFECT':
+        return {
+          icon: '🌳',
+          title: '5. Impacto Estructural',
+          text: 'Piense cómo quedó la relación después de que terminó la situación.'
+        };
+      default:
+        // Preguntas de un solo reactivo (sin triada ENTRY/TIMING/ACTION real,
+        // p. ej. generadas dinámicamente desde el Banco de Trayectorias) no
+        // tienen una fase reconocida — no hay guía específica que mostrar.
+        return null;
     }
   }
 
@@ -505,11 +524,12 @@ export class EvaluationComponent implements OnInit {
    * Si la pregunta es de tipo TRAJECTORY o de prueba neuro-conductual, usa el nuevo
    * modelo epistemológico: Señal Corporal -> Conciencia -> Acción.
    */
-  getCustomOptions(question: Question): { score: number; label: string; text: string; colorClass: string; hexColor: string }[] {
+  getCustomOptions(question: Question): { score: number; label: string; icon: string; text: string; colorClass: string; hexColor: string }[] {
     if (!question) return [];
-    
-    // NUEVO MODELO NEURO-CONDUCTUAL
-    if (question.type === 'NEURO_AWARENESS') {
+
+    // NUEVO MODELO NEURO-CONDUCTUAL (incluye el banco SCENARIO_V1_2, que ya trae
+    // texto completo por opción desde V89-V93 — no debe caer al fallback genérico)
+    if (question.type === 'NEURO_AWARENESS' || question.type === 'SCENARIO_V1_2') {
       if (question.options && question.options.length > 0) {
         // Map dynamic options from backend
         // We set label to empty to avoid exposing internal levels to the user,
@@ -517,67 +537,35 @@ export class EvaluationComponent implements OnInit {
         return question.options.map(opt => ({
           score: opt.scoreValue,
           label: '',
+          icon: '',
           text: opt.text,
           colorClass: '',
           hexColor: '#64748b'
         })).sort((a, b) => a.score - b.score);
       }
     }
-    
+
     // Fallback para pruebas temporales o sin opciones DB
     if (question.type === 'TRAJECTORY' || question.questionKey?.startsWith('TEST-NEURO')) {
       return [
-        { score: 1, label: '', text: 'No noto nada especial en mi cuerpo o reacción.', colorClass: '', hexColor: '#64748b' },
-        { score: 2, label: '', text: 'Solo me doy cuenta después de haber reaccionado.', colorClass: '', hexColor: '#f87171' },
-        { score: 3, label: '', text: 'Noto tensión, emoción o impulso mientras ocurre.', colorClass: '', hexColor: '#f59e0b' },
-        { score: 4, label: '', text: 'Al notar esa señal, hago una pausa antes de responder.', colorClass: '', hexColor: '#3b82f6' },
-        { score: 5, label: '', text: 'Puedo mantener calma, claridad y cuidado en mi respuesta.', colorClass: '', hexColor: '#10b981' }
+        { score: 1, label: '', icon: '', text: 'No noto nada especial en mi cuerpo o reacción.', colorClass: '', hexColor: '#64748b' },
+        { score: 2, label: '', icon: '', text: 'Solo me doy cuenta después de haber reaccionado.', colorClass: '', hexColor: '#f87171' },
+        { score: 3, label: '', icon: '', text: 'Noto tensión, emoción o impulso mientras ocurre.', colorClass: '', hexColor: '#f59e0b' },
+        { score: 4, label: '', icon: '', text: 'Al notar esa señal, hago una pausa antes de responder.', colorClass: '', hexColor: '#3b82f6' },
+        { score: 5, label: '', icon: '', text: 'Puedo mantener calma, claridad y cuidado en mi respuesta.', colorClass: '', hexColor: '#10b981' }
       ];
     }
 
-    // MODELO TRADICIONAL
-    const dim = (question.dimension || '').toLowerCase().trim();
-    if (dim.includes('emocion')) {
-      return [
-        { score: 1, label: 'Inconsciente', text: 'No noto que hago esto', colorClass: 'Gris', hexColor: '#64748b' },
-        { score: 2, label: 'Reactivo', text: 'Me pasa frecuentemente', colorClass: 'Rojo Suave', hexColor: '#f87171' },
-        { score: 3, label: 'Consciente', text: 'Ya empiezo a reconocerlo', colorClass: 'Amarillo', hexColor: '#f59e0b' },
-        { score: 4, label: 'Intencional', text: 'Intento detenerme antes', colorClass: 'Azul', hexColor: '#3b82f6' },
-        { score: 5, label: 'Pleno', text: 'Manejo mis emociones con calma', colorClass: 'Verde', hexColor: '#10b981' }
-      ];
-    } else if (dim.includes('comunicac')) {
-      return [
-        { score: 1, label: 'Inconsciente', text: 'Casi nunca escucho realmente', colorClass: 'Gris', hexColor: '#64748b' },
-        { score: 2, label: 'Reactivo', text: 'Me altero fácilmente', colorClass: 'Rojo Suave', hexColor: '#f87171' },
-        { score: 3, label: 'Consciente', text: 'A veces logro escuchar', colorClass: 'Amarillo', hexColor: '#f59e0b' },
-        { score: 4, label: 'Intencional', text: 'Estoy aprendiendo a dialogar', colorClass: 'Azul', hexColor: '#3b82f6' },
-        { score: 5, label: 'Pleno', text: 'Escucho con apertura y respeto', colorClass: 'Verde', hexColor: '#10b981' }
-      ];
-    } else if (dim.includes('habit') || dim.includes('hábito')) {
-      return [
-        { score: 1, label: 'Inconsciente', text: 'No pienso mucho en eso', colorClass: 'Gris', hexColor: '#64748b' },
-        { score: 2, label: 'Reactivo', text: 'Solo cumplo si me presionan', colorClass: 'Rojo Suave', hexColor: '#f87171' },
-        { score: 3, label: 'Consciente', text: 'A veces lo logro', colorClass: 'Amarillo', hexColor: '#f59e0b' },
-        { score: 4, label: 'Intencional', text: 'Estoy creando disciplina', colorClass: 'Azul', hexColor: '#3b82f6' },
-        { score: 5, label: 'Pleno', text: 'Ya es parte de mí', colorClass: 'Verde', hexColor: '#10b981' }
-      ];
-    } else if (dim.includes('tiemp')) {
-      return [
-        { score: 1, label: PRESENCE_SCALE[1].state, text: PRESENCE_SCALE[1].description, colorClass: PRESENCE_SCALE[1].colorCode, hexColor: '#64748b' },
-        { score: 2, label: PRESENCE_SCALE[2].state, text: PRESENCE_SCALE[2].description, colorClass: PRESENCE_SCALE[2].colorCode, hexColor: '#f87171' },
-        { score: 3, label: PRESENCE_SCALE[3].state, text: PRESENCE_SCALE[3].description, colorClass: PRESENCE_SCALE[3].colorCode, hexColor: '#f59e0b' },
-        { score: 4, label: PRESENCE_SCALE[4].state, text: PRESENCE_SCALE[4].description, colorClass: PRESENCE_SCALE[4].colorCode, hexColor: '#3b82f6' },
-        { score: 5, label: PRESENCE_SCALE[5].state, text: PRESENCE_SCALE[5].description, colorClass: PRESENCE_SCALE[5].colorCode, hexColor: '#10b981' }
-      ];
-    }
-    
-    // Default fallback
-    return [
-      { score: 1, label: 'Inconsciente', text: 'Casi nunca me doy cuenta', colorClass: 'Gris', hexColor: '#64748b' },
-      { score: 2, label: 'Reactivo', text: 'Reacciono antes de pensar', colorClass: 'Rojo Suave', hexColor: '#f87171' },
-      { score: 3, label: 'Consciente', text: 'A veces logro manejarlo', colorClass: 'Amarillo', hexColor: '#f59e0b' },
-      { score: 4, label: 'Intencional', text: 'Estoy aprendiendo a responder mejor', colorClass: 'Azul', hexColor: '#3b82f6' },
-      { score: 5, label: 'Pleno', text: 'Ya lo hago naturalmente', colorClass: 'Verde', hexColor: '#10b981' }
-    ];
+    // MODELO TRADICIONAL — Ruta de Conciencia Familiar (fuente única, ver CLAUDE.md)
+    // La misma escala de 5 niveles aplica a cualquier dimensión: la pregunta ya
+    // aporta el contexto específico, la respuesta describe el estado de conciencia.
+    return Object.values(RUTA_CONCIENCIA_SCALE).map(({ score, label, icon, text, colorClass, hexColor }) => ({
+      score,
+      label,
+      icon,
+      text,
+      colorClass,
+      hexColor
+    }));
   }
 }

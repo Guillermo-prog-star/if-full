@@ -23,8 +23,12 @@ public class QuestionOption {
     @Column(nullable = false, length = 500)
     private String text;
 
-    @Column(name = "score_value", nullable = false)
-    private Integer scoreValue;
+    @Column(name = "score_value")
+    @Builder.Default
+    private Integer scoreValue = 0;
+
+    @Column(name = "rubric_level")
+    private Integer rubricLevel;
 
     @Column(name = "awareness_component", length = 50)
     private String awarenessComponent;

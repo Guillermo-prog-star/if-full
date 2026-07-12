@@ -58,7 +58,7 @@ spring:
         smtp:
           auth: true
           starttls:
-            enabled: true
+            enable: true
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -141,7 +141,8 @@ whatsapp:
     # Tipos de notificación que disparan WhatsApp (alta prioridad)
     priority-types: >
       RISK_CRITICAL_ALERT,TRAJECTORY_RELAPSED,TRAJECTORY_RELAPSE_REMINDER,
-      TRAJECTORY_SUGGESTION_URGENT,SENTINEL_ALERT,CRISIS_ALERT,PLAN_ASSIGNED
+      TRAJECTORY_SUGGESTION_URGENT,TRAJECTORY_SAFETY_PROTOCOL_URGENT,TRAJECTORY_DETECTED_SAFETY_PROTOCOL,
+      SAFETY_PROTOCOL_ACTIVATED,SENTINEL_ALERT,CRISIS_ALERT,PLAN_ASSIGNED
 
 logging:
   file:

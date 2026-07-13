@@ -277,7 +277,9 @@ Dashboard: https://sonarcloud.io/project/overview?id=Guillermo-prog-star_if-full
 - V98 — `safety_protocol_activations`: activación estructurada del protocolo de seguridad (responsable real vía FK a `family_members`, acción inicial, `follow_up_date` obligatoria, `support_assignment_id` opcional hacia `family_support_assignments`). Deliberadamente separado de `family_error_protocols` (ritual Detectar-Sentir-Comprender para misiones fallidas, módulo `errorprotocol`) — un riesgo vital/legal va directo a acción, no a un ritual emocional de 7 pasos. Activación siempre manual (requiere confirmación humana), nunca automática. Endpoints en `TrajectoryController`: `POST/GET /api/trajectories/family/{id}/safety-protocol`, `POST .../safety-protocol/{activationId}/close`.
 - V99 — Corrige `PT-CU-01` (CU-10 Gestión de Crisis), que describía un flujo aspiracional nunca implementado (`ErrorProtocolService activa protocolo` automáticamente ante riesgo CRITICAL). Ahora refleja el mecanismo real de V98 y agrega CU-11 distinguiendo `FamilyErrorProtocol` (misiones fallidas) de `SafetyProtocolActivation` (crisis). También actualiza `DOC-TRAY-002` (v1.2) para referenciar el endpoint real en vez de una instrucción vaga.
 - V100–V101 — Corrigen `DOC-TRAY-001`/`DOC-TRAY-002` (sembrados directo por SQL en V75, sin pasar por el enum Java): `category` tenía valores `TECHNICAL`/`GUIDE` que no existen en `DocumentCategory` (solo `PROJECT, RESEARCH, FAMILY, AI, DEVELOPMENT`), lo que hacía fallar `ProjectDocumentRepository.findAll()` — y por ende `DocumentationDataInitializerPart2` — en cada arranque (silenciado por un try/catch amplio, sin romper la app pero bloqueando la carga de documentos complementarios nuevos). Se remapearon a `PROJECT`. Además tenían `status='PUBLISHED'` en vez de `'ACTIVE'` (el único valor que filtra `DocumentationService.listAll()`), por lo que nunca aparecían en el Centro de Documentación pese a ser consultables por código directo — corregido también.
-- Próximo número disponible: **V102**
+- V102 — `family_action_executions` (Family Action Engine, IFRM-D Hito 5): registro de ejecuciones de comandos semánticos del Hogar Digital, para idempotencia (evita reejecutar la misma acción si el cliente reintenta con el mismo Idempotency-Key) y como rastro auditable mínimo.
+- V103 — Fase 0 del programa de interoperabilidad con el ecosistema de salud (ver sección "Interoperabilidad — Ministerio de Salud" más abajo): agrega `family_members.document_type`/`document_number` (nullable, único cuando ambos están presentes) — ancla de identidad necesaria para mapear un miembro a FHIR `Patient.identifier`/un MPI nacional. Antes de esta migración no existía ningún campo de identificación formal en el dominio.
+- Próximo número disponible: **V104**
 
 ---
 
@@ -321,3 +323,19 @@ Componente metodológico central de Integrity Family. Reemplaza las escalas de f
 - El `state` interno (`INCONSCIENTE`…`PLENO`) **nunca se expone al usuario** — el frontend solo renderiza `text` (ver patrón ya usado en el modo `NEURO_AWARENESS`, que oculta `label` deliberadamente).
 - El modelo `NEURO_AWARENESS`/`TRAJECTORY` (Señal Corporal → Conciencia → Acción, mismo archivo `evaluation.component.ts`) es un modelo epistemológico distinto y **no** se unificó con esta escala — usa sus propias 5 opciones centradas en la señal corporal.
 - Antes de este refactor existían 5 variantes hardcodeadas casi idénticas (una por dimensión + `PRESENCE_SCALE` para tiempos + fallback). Se consolidaron en una sola constante; no se debe volver a bifurcar por dimensión.
+
+---
+
+## Interoperabilidad — Ministerio de Salud y Protección Social
+
+Programa en curso para que Integrity Family sea interoperable con el ecosistema de salud colombiano (FHIR, SISPRO, HCE) sin acoplar el dominio propio (ICaF, Sprint Familiar, Trayectorias, etc.) a ningún estándar externo. Se ejecuta por fases; el dominio nunca conoce FHIR directamente — solo lo conoce la capa `interop`.
+
+**Fases:**
+1. **Fase 0** ✅ — Ancla de identidad: `family_members.document_type`/`document_number` (V103). Sin esto no había forma de mapear una persona a `Patient.identifier`/MPI.
+2. **Fase 1** ✅ — Modelo Canónico (`backend/src/main/java/com/integrityfamily/interop/canonical/`): POJOs (`CanonicalFamilyRecord`, `Person`, `Household`, `Observation`, `Assessment`, `Risk`, `Intervention`, `Goal`, `Outcome`, `ProfessionalNote`, `Evidence`, `Consent`, `CanonicalIdentifier`) sin dependencia de FHIR ni persistencia propia — es solo la forma intermedia que usarán los mappers de fases posteriores.
+3. **Fase 2** ⏳ — Expandir el `Consent` real (hoy solo existe un flag `consentedByEmail`/`consentedAt` en `ecosystem`/`support`, ver `ConsentStatus`) a un modelo con propósito, alcance y revocación.
+4. **Fase 3** ⏳ — Mappers `Integrity Model → Canonical Model`.
+5. **Fase 4** ⏳ — Dependencia HAPI FHIR + `FhirAdapter` real (`Canonical → FHIR`) para recursos piloto (`Patient`, `Group`, `Observation`).
+6. **Fase 5** ⏳ — Terminology Service (Concept Map ICaF↔SNOMED) + wrapper FHIR sobre el `AuditService` ya existente.
+
+No se recomienda construir el API Gateway/OAuth2 completo antes de tener un consumidor real (una IPS, SISPRO) del otro lado.

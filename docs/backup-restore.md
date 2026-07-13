@@ -1,6 +1,6 @@
 # Integrity Family — Backup y Restauración
 
-**Última actualización:** 2026-06-20
+**Última actualización:** 2026-07-13
 
 ---
 
@@ -74,8 +74,9 @@ SELECT 'family_chapter_progress', COUNT(*) FROM family_chapter_progress;
 |-------|--------|-----------|-------|
 | 2026-06-16 | if_backup_20260616_140811.sql.gz (9.6 MB) | OK | 8 tablas verificadas, 100% coincidencia |
 | 2026-06-20 | if_backup_20260620_202317.sql.gz (9.7 MB) | OK | Primer backup automático + verify-restore.sh 8/8 tablas |
+| 2026-07-13 | if_backup_20260712_030621.sql.gz (480 KB) | OK (diferencia explicada) | 7/8 tablas coinciden exacto. `plan_tasks`: 68 prod vs 62 restore — diferencia de 6 registros creados después del backup (backup 2026-07-12 03:06:21, últimos plan_tasks hasta 2026-07-13 16:03:59), confirmado por `created_at`; no es corrupción. `improvement_plans` sigue como N/A en ambos lados (mismo comportamiento que verificaciones previas). Nota: backup usado tenía ~32h de antigüedad (por encima del RPO de 24h) — no había backup del propio 13 de julio al momento de verificar; revisar que la tarea de backup diario esté corriendo. Verificación disparada una semana antes de lo esperado (tarea programada apuntaba al 20 de julio). |
 
-**Próxima verificación recomendada:** 2026-07-20
+**Próxima verificación recomendada:** 2026-08-13
 
 ---
 

@@ -303,6 +303,8 @@ Integrity Family es una plataforma de acompañamiento familiar que:
 - Mantiene un **gemelo digital** de la familia para simulación y predicción
 - Guarda el **linaje, legado y ADN cultural** de cada familia
 
+**Las cuatro capas del proyecto** (computacional, metodológica, matemática, antropológica) están documentadas en [`docs/vision.md`](docs/vision.md) — incluye el Principio de Construcción Compartida de Significado Familiar (CCSF) y las definiciones fundacionales de familia, hogar, conversación familiar, cuidado, amor como práctica y legado. Es un marco conceptual propuesto, no una tesis demostrada — sujeto a la Regla V1.1.1 de evolución basada en evidencia.
+
 ---
 
 ## Ruta de Conciencia Familiar — escala de respuesta oficial

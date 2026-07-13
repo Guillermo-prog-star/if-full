@@ -28,7 +28,7 @@ import { filter } from 'rxjs/operators';
       </div>
 
       <!-- ─── ESTADO EVOLUTIVO ──────────────────── -->
-      @if (familyState.currentFamilyCode()) {
+      @if (familyState.currentFamilyCode() && (!isProUser() || isObserving())) {
         <div class="evolution-card">
           <div class="ev-code">{{ familyState.currentFamilyCode() }}</div>
           <div class="ev-pillar">{{ flow.pillarLabel() }}</div>
@@ -44,6 +44,67 @@ import { filter } from 'rxjs/operators';
       }
 
       <nav>
+        @if (isProUser()) {
+          @if (isObserving()) {
+            <!-- ── MODO OBSERVACIÓN CLÍNICA ── -->
+            <div class="nav-section nav-section--system">
+              <div class="section-label">OBSERVACIÓN CLÍNICA</div>
+              <button (click)="exitObserverMode()" class="nav-item nav-back-pro" style="width: 100%; text-align: left; background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd; cursor: pointer; border-radius: 6px; padding: 10px; margin-bottom: 12px; font-weight: bold; display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 11px;">
+                <span>←</span><span>Volver al Panel</span>
+              </button>
+            </div>
+            
+            <div class="nav-section nav-section--diagnosis">
+              <div class="section-label">DIAGNÓSTICO</div>
+              <a routerLink="/evaluations/evolution" class="nav-item" routerLinkActive="active">
+                <span class="nav-icon">📈</span><span class="nav-text">Evolución</span>
+              </a>
+              <a routerLink="/evaluations/history" class="nav-item" routerLinkActive="active">
+                <span class="nav-icon">📋</span><span class="nav-text">Historial Clínico</span>
+              </a>
+            </div>
+
+            <div class="nav-section nav-section--indices">
+              <div class="section-label">ÍNDICES</div>
+              <a routerLink="/capital" class="nav-item nav-capital" routerLinkActive="active">
+                <span class="nav-icon">💎</span><span class="nav-text">Capital - ICaF</span>
+              </a>
+              <a routerLink="/smff" class="nav-item nav-smff" routerLinkActive="active">
+                <span class="nav-icon">📐</span><span class="nav-text">Fortalecimiento - SMFF</span>
+              </a>
+            </div>
+
+            <div class="nav-section nav-section--evolution">
+              <div class="section-label">PLAN &amp; RUTA</div>
+              <a routerLink="/plans" class="nav-item" routerLinkActive="active">
+                <span class="nav-icon">📋</span><span class="nav-text">Plan Familiar</span>
+              </a>
+            </div>
+
+            <div class="nav-section nav-section--support">
+              <div class="section-label">SALUD &amp; APOYO</div>
+              <a routerLink="/health" class="nav-item nav-health" routerLinkActive="active">
+                <span class="nav-icon">❤️‍🔥</span><span class="nav-text">Salud Familiar</span>
+              </a>
+              <a routerLink="/trajectory" class="nav-item nav-traj" routerLinkActive="active">
+                <span class="nav-icon">🗺️</span><span class="nav-text">Trayectorias de Riesgo</span>
+              </a>
+              <a routerLink="/ecosystem" class="nav-item nav-ecosystem" routerLinkActive="active">
+                <span class="nav-icon">🌐</span><span class="nav-text">Ecosistema de Apoyo</span>
+              </a>
+            </div>
+          } @else {
+            <!-- ── MODO CRM PROFESIONAL (Normal) ── -->
+            <div class="nav-section nav-section--support">
+              <div class="section-label">ACCESO PROFESIONAL</div>
+              <a routerLink="/professional" class="nav-item nav-professional" routerLinkActive="active">
+                <span class="nav-icon">🩺</span><span class="nav-text">Panel Profesional</span>
+              </a>
+            </div>
+          }
+        } @else {
+          <!-- ── MODO FAMILIA ESTÁNDAR ── -->
+
 
         <!-- ── BLOQUE 1: CONFIGURACIÓN — Azul (infraestructura) ──── -->
         <div class="nav-section nav-section--system">
@@ -240,6 +301,8 @@ import { filter } from 'rxjs/operators';
           </a>
         </div>
 
+
+        }
         @if (user()?.role === 'ADMIN') {
           <div class="divider"></div>
           <div class="nav-section nav-section--admin">
@@ -528,6 +591,19 @@ export class SidebarComponent implements OnInit {
   readonly guardianRoute = computed(() =>
     ['/guardian', String(this.familyState.currentFamilyId()), 'election']
   );
+
+  isProUser(): boolean {
+    return !!this.user()?.isProfessional;
+  }
+
+  isObserving(): boolean {
+    return this.familyState.isObserving();
+  }
+
+  exitObserverMode(): void {
+    this.familyState.clearFamily();
+    this.router.navigate(['/professional']);
+  }
 
   ngOnInit() {
     this.checkActiveRoute();

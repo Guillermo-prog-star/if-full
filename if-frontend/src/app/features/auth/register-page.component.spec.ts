@@ -27,6 +27,7 @@ function buildComponent(authSpy: jasmine.SpyObj<AuthService>) {
 
   const fixture = TestBed.createComponent(RegisterPageComponent);
   const component = fixture.componentInstance;
+  component.termsAccepted = true;
   const router = TestBed.inject(Router);
   spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
   fixture.detectChanges();

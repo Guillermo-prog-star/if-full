@@ -68,6 +68,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/portal-familiar/portal-familiar.component').then(m => m.PortalFamiliarComponent)
       },
       {
+        path: 'family-home',
+        title: 'Hogar Digital Familiar',
+        loadComponent: () => import('./features/family-home/family-home-page.component').then(m => m.FamilyHomePageComponent)
+      },
+      {
         path: 'portal/invisible-stories',
         title: 'Historias Invisibles',
         loadComponent: () => import('./features/portal-familiar/invisible-stories/invisible-stories.component').then(m => m.InvisibleStoriesComponent)

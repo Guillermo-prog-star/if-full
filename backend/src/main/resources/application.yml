@@ -156,6 +156,8 @@ integrity:
     jwt:
       secret: ${JWT_SECRET:aW50ZWdyaXR5RmFtaWx5U2VjcmV0S2V5Rm9yVGhlVW5pZmllZEludGVncml0eUVuZ2luZTIwMjY=}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    family-home:
+      id-secret: ${FAMILY_HOME_ID_SECRET:aW50ZWdyaXR5RmFtaWx5SG9tZUlkSG1hY1NlY3JldEZvclB1YmxpY1VVSURzMjAyNg==}
 
 
 ---

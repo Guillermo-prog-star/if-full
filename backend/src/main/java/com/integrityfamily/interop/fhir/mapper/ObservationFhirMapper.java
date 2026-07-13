@@ -2,6 +2,7 @@ package com.integrityfamily.interop.fhir.mapper;
 
 import com.integrityfamily.interop.canonical.Observation;
 import com.integrityfamily.interop.fhir.FhirReferences;
+import com.integrityfamily.interop.terminology.ConceptMapping;
 import org.hl7.fhir.r4.model.CodeableConcept;
 import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.DateTimeType;
@@ -18,8 +19,11 @@ import java.util.Date;
  * completamente calificada para evitar ambigüedad.
  *
  * El código usa un CodeSystem propio de Integrity (ej. "ICF",
- * "SOMATIC_AWARENESS") — el mapeo a LOINC/SNOMED es responsabilidad del
- * Terminology Service (Fase 5), no de este adapter.
+ * "SOMATIC_AWARENESS") como coding principal siempre. Si el llamador
+ * (Fase 5, {@code TerminologyService}) resuelve un mapeo verificado a
+ * SNOMED/LOINC, se agrega como una segunda {@code Coding} — nunca reemplaza
+ * la primera. El mapper sigue siendo una función pura: no consulta el
+ * Terminology Service él mismo, solo recibe el resultado ya resuelto.
  */
 public final class ObservationFhirMapper {
 
@@ -27,15 +31,23 @@ public final class ObservationFhirMapper {
 
     private ObservationFhirMapper() {}
 
-    public static org.hl7.fhir.r4.model.Observation toFhir(Observation observation) {
+    public static org.hl7.fhir.r4.model.Observation toFhir(Observation observation, ConceptMapping standardMapping) {
         org.hl7.fhir.r4.model.Observation fhirObservation = new org.hl7.fhir.r4.model.Observation();
         fhirObservation.setId(observation.canonicalId());
         fhirObservation.setStatus(mapStatus(observation.status()));
         fhirObservation.setSubject(FhirReferences.forSubject(observation.subjectId()));
 
-        fhirObservation.setCode(new CodeableConcept()
+        CodeableConcept code = new CodeableConcept()
                 .addCoding(new Coding().setSystem(CODE_SYSTEM).setCode(observation.code()).setDisplay(observation.display()))
-                .setText(observation.display()));
+                .setText(observation.display());
+        if (standardMapping != null) {
+            code.addCoding(new Coding()
+                    .setSystem(standardMapping.targetSystem())
+                    .setCode(standardMapping.targetCode())
+                    .setDisplay(standardMapping.targetDisplay())
+                    .setVersion(standardMapping.targetVersion()));
+        }
+        fhirObservation.setCode(code);
 
         if (observation.valueNumeric() != null) {
             fhirObservation.setValue(new Quantity().setValue(observation.valueNumeric()));

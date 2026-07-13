@@ -1,6 +1,8 @@
 package com.integrityfamily.interop.fhir.service;
 
 import com.integrityfamily.interop.canonical.*;
+import com.integrityfamily.interop.terminology.ConceptMapping;
+import com.integrityfamily.interop.terminology.TerminologyService;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Group;
 import org.hl7.fhir.r4.model.Patient;
@@ -14,7 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("FhirBundleAssembler")
 class FhirBundleAssemblerTest {
 
-    private final FhirBundleAssembler assembler = new FhirBundleAssembler();
+    private final TerminologyService terminologyService = new TerminologyService();
+    private final FhirBundleAssembler assembler = new FhirBundleAssembler(terminologyService);
 
     @Test
     @DisplayName("ensambla Bundle COLLECTION con 1 Group + N Patient + M Observation")
@@ -63,5 +66,27 @@ class FhirBundleAssemblerTest {
 
         assertThat(bundle.getEntry()).hasSize(1);
         assertThat(bundle.getEntry().get(0).getResource()).isInstanceOf(Group.class);
+    }
+
+    @Test
+    @DisplayName("con mapeo registrado en TerminologyService → la Observation FHIR trae la coding estándar")
+    void shouldUseRegisteredTerminologyMapping() {
+        terminologyService.register(new ConceptMapping("ICF", "http://example.org/test-system", "999999", "Ejemplo", "1.0"));
+
+        Household household = Household.builder().canonicalId("family-3").name("Familia Y").members(List.of()).build();
+        Observation obs = Observation.builder().canonicalId("obs-x").subjectId("family-3").code("ICF").display("ICF").status("FINAL").build();
+        Assessment assessment = Assessment.builder().canonicalId("eval-1").subjectId("family-3").observations(List.of(obs)).build();
+        CanonicalFamilyRecord record = CanonicalFamilyRecord.builder()
+                .canonicalId("family-3").household(household)
+                .assessments(List.of(assessment)).risks(List.of()).consents(List.of())
+                .build();
+
+        Bundle bundle = assembler.assemble(record);
+
+        var fhirObs = (org.hl7.fhir.r4.model.Observation) bundle.getEntry().stream()
+                .filter(e -> e.getResource() instanceof org.hl7.fhir.r4.model.Observation)
+                .findFirst().orElseThrow().getResource();
+        assertThat(fhirObs.getCode().getCoding()).hasSize(2);
+        assertThat(fhirObs.getCode().getCoding().get(1).getCode()).isEqualTo("999999");
     }
 }

@@ -4,6 +4,8 @@ import com.integrityfamily.interop.canonical.CanonicalFamilyRecord;
 import com.integrityfamily.interop.fhir.mapper.GroupFhirMapper;
 import com.integrityfamily.interop.fhir.mapper.ObservationFhirMapper;
 import com.integrityfamily.interop.fhir.mapper.PatientFhirMapper;
+import com.integrityfamily.interop.terminology.TerminologyService;
+import lombok.RequiredArgsConstructor;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Resource;
 import org.springframework.stereotype.Service;
@@ -15,7 +17,10 @@ import org.springframework.stereotype.Service;
  * porque en la Fase 3 el registro canónico ya los deja vacíos.
  */
 @Service
+@RequiredArgsConstructor
 public class FhirBundleAssembler {
+
+    private final TerminologyService terminologyService;
 
     public Bundle assemble(CanonicalFamilyRecord record) {
         Bundle bundle = new Bundle();
@@ -31,7 +36,8 @@ public class FhirBundleAssembler {
 
         for (var assessment : record.assessments()) {
             for (var observation : assessment.observations()) {
-                addEntry(bundle, "Observation", ObservationFhirMapper.toFhir(observation));
+                var standardMapping = terminologyService.lookup(observation.code()).orElse(null);
+                addEntry(bundle, "Observation", ObservationFhirMapper.toFhir(observation, standardMapping));
             }
         }
 

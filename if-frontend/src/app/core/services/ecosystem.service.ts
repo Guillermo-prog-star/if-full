@@ -118,4 +118,22 @@ export class EcosystemService {
   registerParticipant(req: RegisterParticipantRequest): Observable<EcosystemParticipant> {
     return this.http.post<EcosystemParticipant>(`${this.base}/ecosystem/participants`, req);
   }
+
+  updateParticipant(id: number, req: RegisterParticipantRequest): Observable<EcosystemParticipant> {
+    return this.http.put<EcosystemParticipant>(`${this.base}/ecosystem/participants/${id}`, req);
+  }
+
+  deleteParticipant(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/ecosystem/participants/${id}`);
+  }
+
+  updateLink(familyId: number, linkId: number, payload: {
+    objective?: string;
+    responsibilities?: string;
+    validFrom?: string | null;
+    validUntil?: string | null;
+    accessScope?: Partial<EcosystemAccessScope>;
+  }): Observable<EcosystemLink> {
+    return this.http.put<EcosystemLink>(`${this.base}/families/${familyId}/ecosystem/links/${linkId}`, payload);
+  }
 }

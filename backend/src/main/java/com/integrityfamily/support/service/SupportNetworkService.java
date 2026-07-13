@@ -14,11 +14,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.integrityfamily.ecosystem.repository.FamilyEcosystemLinkRepository;
+import com.integrityfamily.ecosystem.domain.FamilyEcosystemLink;
+import com.integrityfamily.ecosystem.domain.EcosystemLinkStatus;
+import com.integrityfamily.ecosystem.domain.EcosystemParticipant;
+import com.integrityfamily.ecosystem.domain.NetworkType;
+import com.integrityfamily.family.service.FamilyHealthSummaryService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 
 /**
  * Red de Apoyo Humano.
@@ -42,6 +48,8 @@ public class SupportNetworkService {
     private final EvaluationRepository evaluationRepository;
     private final FamilySprintRepository sprintRepository;
     private final SupportAccessLogRepository accessLogRepository;
+    private final FamilyEcosystemLinkRepository linkRepository;
+    private final FamilyHealthSummaryService healthSummaryService;
 
     // ─────────────────────────────────────────────────────────────────────
     // Registro de profesionales (lo hace el admin o el propio profesional)
@@ -276,19 +284,40 @@ public class SupportNetworkService {
 
     @Transactional(readOnly = true)
     public List<AssignmentResponse> getMyAssignments(String email) {
-        SupportNetworkMember member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(
-                        "No existe un perfil profesional para este usuario.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
-        return assignmentRepository.findBySupportMemberIdAndStatus(member.getId(), AssignmentStatus.ACTIVE)
-                .stream().map(this::toAssignmentResponse).toList();
+        List<AssignmentResponse> result = new ArrayList<>();
+        Optional<SupportNetworkMember> memberOpt = memberRepository.findByEmail(email);
+        if (memberOpt.isPresent()) {
+            SupportNetworkMember member = memberOpt.get();
+            result.addAll(assignmentRepository.findBySupportMemberIdAndStatus(member.getId(), AssignmentStatus.ACTIVE)
+                    .stream().map(this::toAssignmentResponse).toList());
+        }
+        List<FamilyEcosystemLink> ecoLinks = linkRepository.findByParticipantContactEmailAndStatus(email, EcosystemLinkStatus.ACTIVE);
+        for (FamilyEcosystemLink link : ecoLinks) {
+            result.add(mapEcosystemLinkToAssignment(link));
+        }
+        return result;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ProfessionalResponse getMyProfile(String email) {
-        SupportNetworkMember member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException(
-                        "No existe un perfil profesional para este usuario.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
-        return toResponse(member);
+        Optional<SupportNetworkMember> memberOpt = memberRepository.findByEmail(email);
+        if (memberOpt.isPresent()) {
+            return toResponse(memberOpt.get());
+        }
+        List<FamilyEcosystemLink> ecoLinks = linkRepository.findByParticipantContactEmailAndStatus(email, EcosystemLinkStatus.ACTIVE);
+        if (!ecoLinks.isEmpty()) {
+            EcosystemParticipant p = ecoLinks.get(0).getParticipant();
+            SupportNetworkMember newMember = SupportNetworkMember.builder()
+                    .fullName(p.getName())
+                    .email(p.getContactEmail())
+                    .phone(p.getContactPhone())
+                    .specialty(mapSpecialty(p.getDescription()))
+                    .bio(p.getDescription())
+                    .build();
+            return toResponse(memberRepository.save(newMember));
+        }
+        throw new BusinessException(
+                "No existe un perfil profesional para este usuario.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND);
     }
 
     @Transactional
@@ -304,75 +333,152 @@ public class SupportNetworkService {
         return toResponse(memberRepository.save(member));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public FamilyDataView getDataView(Long familyId, Long assignmentId, String email) {
-        SupportNetworkMember member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new BusinessException("Perfil profesional no encontrado.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
+        Optional<FamilySupportAssignment> assignmentOpt = assignmentRepository.findById(assignmentId);
+        if (assignmentOpt.isPresent()) {
+            FamilySupportAssignment assignment = assignmentOpt.get();
+            SupportNetworkMember member = memberRepository.findByEmail(email)
+                    .orElseThrow(() -> new BusinessException("Perfil profesional no encontrado.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
 
-        FamilySupportAssignment assignment = assignmentRepository.findById(assignmentId)
-                .orElseThrow(() -> new BusinessException("Asignación no encontrada.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
-
-        if (!assignment.getFamilyId().equals(familyId) || !assignment.getSupportMember().getId().equals(member.getId())) {
-            throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
-        }
-        if (assignment.getStatus() != AssignmentStatus.ACTIVE) {
-            throw new BusinessException("La asignación no está activa.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
-        }
-
-        Family family = getFamily(familyId);
-        FamilyDataView.FamilyDataViewBuilder view = FamilyDataView.builder()
-                .familyId(familyId)
-                .familyName(family.getName())
-                .assignmentId(assignmentId)
-                .specialty(assignment.getSpecialty())
-                .sentinelActive(Boolean.TRUE.equals(family.getSentinelActive()));
-
-        int level = 0;
-
-        if (assignment.isCanViewIcfScore()) {
-            level++;
-            List<com.integrityfamily.domain.Evaluation> lastTwo =
-                    evaluationRepository.findTop2ByFamilyIdAndStatusOrderByFinalizedAtDesc(familyId, EvaluationStatus.FINALIZED);
-            if (!lastTwo.isEmpty()) {
-                com.integrityfamily.domain.Evaluation latest = lastTwo.get(0);
-                view.icfScore(latest.getIcf() != null ? latest.getIcf().doubleValue() : null);
-                view.riskLevel(latest.getRiskLevel());
-                view.icfLabel(labelFromIcf(latest.getIcf()));
-                view.icfDirection(calcDirection(
-                        latest.getIcf(),
-                        lastTwo.size() > 1 ? lastTwo.get(1).getIcf() : null));
+            if (!assignment.getFamilyId().equals(familyId) || !assignment.getSupportMember().getId().equals(member.getId())) {
+                throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
             }
-        }
-        if (assignment.isCanViewRiskLevel()) {
-            level++;
-        }
-        if (assignment.isCanViewPlanSummary()) {
-            level++;
-            view.planSummaryAvailable(true);
-        }
-        if (assignment.isCanViewSprintProgress()) {
-            level++;
-            sprintRepository.findActiveSprintForFamily(familyId).ifPresentOrElse(
-                sprint -> {
-                    view.hasActiveSprint(true);
-                    view.activeSprintStatus(sprint.getStatus());
-                },
-                () -> view.hasActiveSprint(false)
-            );
-        }
-        if (assignment.isCanViewCrisisHistory()) {
-            level++;
-            view.crisisHistoryAvailable(true);
+            if (assignment.getStatus() != AssignmentStatus.ACTIVE) {
+                throw new BusinessException("La asignación no está activa.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+
+            Family family = getFamily(familyId);
+            FamilyDataView.FamilyDataViewBuilder view = FamilyDataView.builder()
+                    .familyId(familyId)
+                    .familyName(family.getName())
+                    .assignmentId(assignmentId)
+                    .specialty(assignment.getSpecialty())
+                    .sentinelActive(Boolean.TRUE.equals(family.getSentinelActive()));
+
+            int level = 0;
+
+            if (assignment.isCanViewIcfScore()) {
+                level++;
+                List<com.integrityfamily.domain.Evaluation> lastTwo =
+                        evaluationRepository.findTop2ByFamilyIdAndStatusOrderByFinalizedAtDesc(familyId, EvaluationStatus.FINALIZED);
+                if (!lastTwo.isEmpty()) {
+                    com.integrityfamily.domain.Evaluation latest = lastTwo.get(0);
+                    view.icfScore(latest.getIcf() != null ? latest.getIcf().doubleValue() : null);
+                    view.riskLevel(latest.getRiskLevel());
+                    view.icfLabel(labelFromIcf(latest.getIcf()));
+                    view.icfDirection(calcDirection(
+                            latest.getIcf(),
+                            lastTwo.size() > 1 ? lastTwo.get(1).getIcf() : null));
+                }
+            }
+            if (assignment.isCanViewRiskLevel()) {
+                level++;
+            }
+            if (assignment.isCanViewPlanSummary()) {
+                level++;
+                view.planSummaryAvailable(true);
+            }
+            if (assignment.isCanViewSprintProgress()) {
+                level++;
+                sprintRepository.findActiveSprintForFamily(familyId).ifPresentOrElse(
+                    sprint -> {
+                        view.hasActiveSprint(true);
+                        view.activeSprintStatus(sprint.getStatus());
+                    },
+                    () -> view.hasActiveSprint(false)
+                );
+            }
+            if (assignment.isCanViewCrisisHistory()) {
+                level++;
+                view.crisisHistoryAvailable(true);
+            }
+
+            view.accessLevel(level);
+            FamilyDataView result = view.build();
+
+            // Registra el acceso para trazabilidad
+            recordAccess(assignmentId, familyId, email, "DATA_VIEW",
+                    "Consultó datos autorizados (nivel " + level + ")");
+
+            return result;
         }
 
-        view.accessLevel(level);
-        FamilyDataView result = view.build();
+        // 2. Si no es tradicional, buscar en los vínculos de Ecosistema
+        Optional<FamilyEcosystemLink> linkOpt = linkRepository.findById(assignmentId);
+        if (linkOpt.isPresent()) {
+            FamilyEcosystemLink link = linkOpt.get();
+            if (!link.getParticipant().getContactEmail().equalsIgnoreCase(email)) {
+                throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+            if (link.getStatus() != EcosystemLinkStatus.ACTIVE) {
+                throw new BusinessException("El vínculo no está activo.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
 
-        // Registra el acceso para trazabilidad
-        recordAccess(assignmentId, familyId, email, "DATA_VIEW",
-                "Consultó datos autorizados (nivel " + level + ")");
+            Family family = getFamily(familyId);
+            FamilyDataView.FamilyDataViewBuilder view = FamilyDataView.builder()
+                    .familyId(familyId)
+                    .familyName(family.getName())
+                    .assignmentId(assignmentId)
+                    .specialty(mapSpecialty(link.getParticipant().getDescription()))
+                    .sentinelActive(Boolean.TRUE.equals(family.getSentinelActive()));
 
-        return result;
+            int level = 0;
+
+            if (link.isCanViewIcfScore()) {
+                level++;
+                List<com.integrityfamily.domain.Evaluation> lastTwo =
+                        evaluationRepository.findTop2ByFamilyIdAndStatusOrderByFinalizedAtDesc(familyId, EvaluationStatus.FINALIZED);
+                if (!lastTwo.isEmpty()) {
+                    com.integrityfamily.domain.Evaluation latest = lastTwo.get(0);
+                    view.icfScore(latest.getIcf() != null ? latest.getIcf().doubleValue() : null);
+                    view.riskLevel(latest.getRiskLevel());
+                    view.icfLabel(labelFromIcf(latest.getIcf()));
+                    view.icfDirection(calcDirection(
+                            latest.getIcf(),
+                            lastTwo.size() > 1 ? lastTwo.get(1).getIcf() : null));
+                }
+            }
+            if (link.isCanViewRiskLevel()) {
+                level++;
+            }
+            if (link.isCanViewPlanSummary()) {
+                level++;
+                view.planSummaryAvailable(true);
+            }
+            if (link.isCanViewSprintProgress()) {
+                level++;
+                sprintRepository.findActiveSprintForFamily(familyId).ifPresentOrElse(
+                    sprint -> {
+                        view.hasActiveSprint(true);
+                        view.activeSprintStatus(sprint.getStatus());
+                    },
+                    () -> view.hasActiveSprint(false)
+                );
+            }
+            if (link.isCanViewCrisisHistory()) {
+                level++;
+                view.crisisHistoryAvailable(true);
+            }
+
+            view.accessLevel(level);
+            FamilyDataView result = view.build();
+
+            // Guardar log de accesos genérico
+            SupportAccessLog logEntry = SupportAccessLog.builder()
+                    .assignmentId(assignmentId)
+                    .familyId(familyId)
+                    .actorEmail(email)
+                    .action("DATA_VIEW")
+                    .detail("Consultó datos autorizados del Ecosistema (nivel " + level + ")")
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            accessLogRepository.save(logEntry);
+
+            return result;
+        }
+
+        throw new BusinessException("Asignación no encontrada.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND);
     }
 
     @Transactional(readOnly = true)
@@ -482,6 +588,49 @@ public class SupportNetworkService {
         return NoteResponse.builder()
                 .id(n.getId()).content(n.getContent())
                 .visibleToFamily(n.isVisibleToFamily()).createdAt(n.getCreatedAt())
+                .build();
+    }
+
+    private SupportSpecialty mapSpecialty(String desc) {
+        if (desc == null) return SupportSpecialty.THERAPIST;
+        String d = desc.toLowerCase();
+        if (d.contains("medico") || d.contains("médico")) return SupportSpecialty.DOCTOR;
+        if (d.contains("psicol") || d.contains("psicól")) return SupportSpecialty.THERAPIST;
+        if (d.contains("psiquiat")) return SupportSpecialty.DOCTOR;
+        if (d.contains("orient")) return SupportSpecialty.ORIENTADOR;
+        if (d.contains("social")) return SupportSpecialty.SOCIAL_WORKER;
+        return SupportSpecialty.THERAPIST;
+    }
+
+    private AssignmentResponse mapEcosystemLinkToAssignment(FamilyEcosystemLink link) {
+        ProfessionalResponse pro = ProfessionalResponse.builder()
+                .id(link.getParticipant().getId())
+                .fullName(link.getParticipant().getName())
+                .email(link.getParticipant().getContactEmail())
+                .specialty(mapSpecialty(link.getParticipant().getDescription()))
+                .bio(link.getParticipant().getDescription())
+                .build();
+
+        AccessScopeDto scope = new AccessScopeDto();
+        scope.setCanViewIcfScore(link.isCanViewIcfScore());
+        scope.setCanViewRiskLevel(link.isCanViewRiskLevel());
+        scope.setCanViewPlanSummary(link.isCanViewPlanSummary());
+        scope.setCanViewSprintProgress(link.isCanViewSprintProgress());
+        scope.setCanViewCrisisHistory(link.isCanViewCrisisHistory());
+        scope.setCanLeaveNotes(true);
+
+        return AssignmentResponse.builder()
+                .id(link.getId())
+                .familyId(link.getFamilyId())
+                .professional(pro)
+                .specialty(pro.getSpecialty())
+                .status(AssignmentStatus.ACTIVE)
+                .invitedByEmail(link.getInvitedByEmail())
+                .invitedAt(link.getInvitedAt())
+                .consentedByEmail(link.getConsentedByEmail())
+                .consentedAt(link.getConsentedAt())
+                .accessScope(scope)
+                .visibleNotes(new ArrayList<>())
                 .build();
     }
 }

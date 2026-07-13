@@ -10,6 +10,8 @@ import com.integrityfamily.domain.repository.FamilyRepository;
 import com.integrityfamily.domain.repository.RoleRepository;
 import com.integrityfamily.domain.repository.PasswordResetTokenRepository;
 import com.integrityfamily.security.JwtTokenProvider;
+import com.integrityfamily.ecosystem.repository.FamilyEcosystemLinkRepository;
+import com.integrityfamily.ecosystem.domain.EcosystemLinkStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -45,6 +47,7 @@ public class AuthService {
     private final AuditService auditService;
     private final RefreshTokenService refreshTokenService;
     private final EmailService emailService;
+    private final FamilyEcosystemLinkRepository linkRepository;
 
     @Transactional(noRollbackFor = Exception.class)
     public LoginResponse login(LoginRequest request, String ip, String ua) {
@@ -55,6 +58,16 @@ public class AuthService {
             );
             User user = userRepository.findByEmail(request.email())
                     .orElseThrow(() -> new BusinessException("Usuario no encontrado", "USER_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+            // Auto-asignar rol profesional si posee vínculos activos de ecosistema
+            if (linkRepository.existsByParticipantContactEmailAndStatus(user.getEmail(), EcosystemLinkStatus.ACTIVE)) {
+                Role proRole = roleRepository.findByName("ROLE_THERAPIST").orElse(null);
+                if (proRole != null && !user.getRoles().contains(proRole)) {
+                    user.getRoles().add(proRole);
+                    user = userRepository.save(user);
+                    log.info("[AUTH] Se asignó automáticamente ROLE_THERAPIST a {} por tener un vínculo activo en el ecosistema", user.getEmail());
+                }
+            }
 
             // [MULTI-TENANT] Cada usuario pertenece a su propia familia (o es ROLE_ADMIN global)
             // No hay restricción por código de familia — el aislamiento lo garantiza FamilySecurityEvaluator

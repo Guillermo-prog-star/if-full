@@ -387,3 +387,34 @@
   border-radius: 8px; padding: .75rem 1rem; font-size: .85rem; color: #fca5a5;
 }
 .revoke-warn p { margin: 0; }
+
+/* ── Admin acciones de tarjetas ─────────────────────────────────────── */
+.pc-admin-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+.pc-btn-action {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+.pc-btn-action:hover {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+.pc-btn-danger:hover {
+  background: #7f1d1d;
+  color: #fca5a5;
+  border-color: #991b1b;
+}

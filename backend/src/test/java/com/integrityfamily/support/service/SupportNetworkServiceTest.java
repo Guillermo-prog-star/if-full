@@ -6,11 +6,15 @@ import com.integrityfamily.domain.Role;
 import com.integrityfamily.domain.repository.FamilyRepository;
 import com.integrityfamily.domain.repository.RoleRepository;
 import com.integrityfamily.domain.repository.UserRepository;
+import com.integrityfamily.domain.repository.EvaluationRepository;
+import com.integrityfamily.domain.repository.FamilySprintRepository;
 import com.integrityfamily.support.domain.*;
 import com.integrityfamily.support.dto.SupportNetworkDtos.*;
 import com.integrityfamily.support.repository.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.junit.jupiter.api.*;
+import com.integrityfamily.ecosystem.repository.FamilyEcosystemLinkRepository;
+import com.integrityfamily.family.service.FamilyHealthSummaryService;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,6 +38,11 @@ class SupportNetworkServiceTest {
     @Mock UserRepository userRepository;
     @Mock RoleRepository roleRepository;
     @Mock PasswordEncoder passwordEncoder;
+    @Mock EvaluationRepository evaluationRepository;
+    @Mock FamilySprintRepository sprintRepository;
+    @Mock SupportAccessLogRepository accessLogRepository;
+    @Mock FamilyEcosystemLinkRepository linkRepository;
+    @Mock FamilyHealthSummaryService healthSummaryService;
 
     @InjectMocks SupportNetworkService service;
 

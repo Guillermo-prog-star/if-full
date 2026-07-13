@@ -2,8 +2,10 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { FamilyStateService } from '../../core/services/family-state.service';
 
 export interface AccessScope {
   canViewIcfScore: boolean;
@@ -66,6 +68,8 @@ type FamilyTab = 'data' | 'notes' | 'audit';
 export class ProfessionalDashboardComponent implements OnInit {
   private api = inject(ApiService);
   private http = inject(HttpClient);
+  private router = inject(Router);
+  private familyState = inject(FamilyStateService);
 
   readonly mainTab        = signal<MainTab>('families');
   readonly families       = signal<AssignedFamily[]>([]);
@@ -266,5 +270,81 @@ export class ProfessionalDashboardComponent implements OnInit {
 
   icfGaugeDash(score: number | null): string {
     return score ? ((score / 100) * 172) + ' 172' : '0 172';
+  }
+
+  enterObserverMode() {
+    const sel = this.selected();
+    if (!sel) return;
+    this.familyState.setFamily({ id: sel.familyId, name: sel.familyName, familyCode: 'IF-2026-0004' });
+    this.familyState.setObserving(true);
+    this.familyState.setAssignmentId(sel.id);
+    this.router.navigate(['/evaluations/evolution']);
+  }
+
+  generateAiSummaryText(): string {
+    const v = this.dataView();
+    if (!v) return '';
+    
+    const todayStr = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' });
+    const specialtyLabel = this.specialtyMap()[v.specialty ?? ''] ?? v.specialty ?? 'Médico Cirujano';
+    
+    let icfText = 'No registrado';
+    let dirText = 'Estable';
+    if (v.icfScore !== null) {
+      dirText = v.icfDirection === 'IMPROVING' ? 'en mejoría progresiva (↑)' :
+                v.icfDirection === 'DECLINING' ? 'en retroceso (↓)' :
+                v.icfDirection === 'CRITICAL_DECLINE' ? 'en retroceso crítico (↓↓)' : 'estable (→)';
+      icfText = `${v.icfScore.toFixed(1)} (${v.icfLabel}), con tendencia ${dirText}`;
+    }
+    
+    const riskText = v.riskLevel ? `${v.riskLevel}${v.sentinelActive ? ' (ALERTA: Centinela Activo)' : ''}` : 'No determinado';
+    const sprintText = v.hasActiveSprint ? `Activo (Estado: ${v.activeSprintStatus})` : 'Sin sprint activo';
+    const planText = v.planSummaryAvailable ? 'Autorizado y en ejecución' : 'No autorizado / No disponible';
+    const crisisText = v.crisisHistoryAvailable ? 'Habilitado para seguimiento longitudinal' : 'No disponible';
+    
+    let recomendacionesPlan = '';
+    if (v.sentinelActive || v.riskLevel === 'ALTO') {
+      recomendacionesPlan += `• Activar de inmediato el protocolo de mitigación de crisis y revisar disparadores históricos.\n`;
+    } else if (v.riskLevel === 'MODERADO') {
+      recomendacionesPlan += `• Monitorear indicadores de salud familiar y ajustar dosificación de tareas en el Plan de Mejora.\n`;
+    }
+    if (v.icfDirection === 'DECLINING' || v.icfDirection === 'CRITICAL_DECLINE') {
+      recomendacionesPlan += `• Recomendar la realización de un Consejo Familiar orientado a fortalecer la comunicación asertiva y reevaluar la cohesión relacional.\n`;
+    } else {
+      recomendacionesPlan += `• Reforzar el cumplimiento de rituales diarios para consolidar la estabilidad relacional lograda.\n`;
+    }
+    
+    return `Nota de Seguimiento – Ecosistema Integrity Family
+
+Fecha: ${todayStr}
+Profesional: ${specialtyLabel} – Ecosistema Integrity Family
+
+1. DATOS OBJETIVOS DEL SISTEMA
+• ICaF: ${icfText}
+• Nivel de Riesgo Global: ${riskText}
+• Adherencia / Sprint Familiar: ${sprintText}
+• Plan de Mejora Familiar: ${planText}
+• Historial de Crisis: ${crisisText}
+
+2. OBSERVACIÓN CLÍNICA
+• [Espacio para que el profesional documente los hallazgos directamente constatados durante el teleacompañamiento o sesión presencial].
+
+3. INTERPRETACIÓN PROFESIONAL
+• Los indicadores obtenidos sugieren una cohesión familiar que requiere seguimiento estructurado. Estos resultados provienen de un instrumento de tamizaje y no constituyen por sí mismos un diagnóstico clínico. Con la información aportada por la plataforma, no existen elementos suficientes para concluir la existencia de violencia intrafamiliar, trastornos específicos o diagnósticos definitivos.
+
+4. PLAN DE INTERVENCIÓN
+• Realizar observación clínica mediante el Modo Observador para verificar el desarrollo de las misiones del Sprint Familiar.
+• Analizar el cumplimiento de las metas semanales e identificar barreras.
+${recomendacionesPlan}• Ajustar el Plan de Mejora de acuerdo con la evidencia obtenida en el seguimiento.
+• Mantener vigilancia sobre eventos críticos en el Historial de Crisis y activar rutas de protección de ser necesario.
+
+5. PRÓXIMA REEVALUACIÓN
+• Se sugiere nueva reevaluación tras completar el Sprint Familiar activo o ante la aparición de alertas en el protocolo Sentinel.`;
+  }
+
+  copyToClinicalNote() {
+    const text = this.generateAiSummaryText();
+    this.noteContent.set(text);
+    this.familyTab.set('notes');
   }
 }

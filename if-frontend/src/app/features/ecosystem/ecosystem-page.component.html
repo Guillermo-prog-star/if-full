@@ -127,18 +127,36 @@
                   <div class="link-top">
                     <div class="link-avatar">{{ networkIcon(link.networkType) }}</div>
                     <div class="link-info">
-                      <div class="link-name">{{ link.participant?.name }}</div>
+                      <div class="link-name">{{ link.participant ? link.participant.name : '—' }}</div>
                       <div class="link-type">{{ networkLabel(link.networkType) }}</div>
                     </div>
                     <div class="link-badge badge-invited">⏳ Pendiente</div>
                   </div>
                   @if (link.objective) {
-                    <div class="link-objective">🎯 {{ link.objective }}</div>
+                    <div class="link-objective">🎯 <strong>Objetivo:</strong> {{ link.objective }}</div>
                   }
+                  @if (link.responsibilities) {
+                    <div class="link-objective">📋 <strong>Responsabilidades:</strong> {{ link.responsibilities }}</div>
+                  }
+                  @if (link.validFrom || link.validUntil) {
+                    <div class="link-meta" style="margin-top: 0.2rem;">
+                      📅 <strong>Vigencia:</strong>
+                      @if (link.validFrom) { desde {{ formatDate(link.validFrom) }} }
+                      @if (link.validUntil) { hasta {{ formatDate(link.validUntil) }} }
+                    </div>
+                  }
+                  <div class="scope-row" style="margin-top: 0.35rem; margin-bottom: 0.35rem;">
+                    @for (k of scopeKeys(); track k) {
+                      <span class="scope-chip" [class.on]="link.accessScope && link.accessScope[k]" [title]="scopeLabel(k)">
+                        {{ scopeIcon(k) }} {{ scopeLabel(k) }}
+                      </span>
+                    }
+                  </div>
                   <div class="link-meta">Invitado: {{ formatDate(link.invitedAt) }}</div>
-                  <div class="link-actions">
+                  <div class="link-actions" style="display: flex; gap: 0.35rem; align-items: center;">
                     <button class="btn-consent" (click)="openConsentModal(link)">✓ Dar consentimiento</button>
                     <button class="btn-revoke-sm" (click)="openRevokeModal(link.id)">✕ Rechazar</button>
+                    <button class="pc-btn-action" (click)="openEditLinkModal(link)" title="Editar conexión">✏️</button>
                   </div>
                 </div>
               }
@@ -161,7 +179,7 @@
                     <div class="link-top">
                       <div class="link-avatar">{{ networkIcon(link.networkType) }}</div>
                       <div class="link-info">
-                        <div class="link-name">{{ link.participant?.name }}</div>
+                        <div class="link-name">{{ link.participant ? link.participant.name : '—' }}</div>
                         <div class="link-type">{{ networkLabel(link.networkType) }}</div>
                       </div>
                       <div class="link-badge" [class]="'badge-' + link.status.toLowerCase()">
@@ -170,13 +188,16 @@
                     </div>
 
                     @if (link.objective) {
-                      <div class="link-objective">🎯 {{ link.objective }}</div>
+                      <div class="link-objective">🎯 <strong>Objetivo:</strong> {{ link.objective }}</div>
+                    }
+                    @if (link.responsibilities) {
+                      <div class="link-objective">📋 <strong>Responsabilidades:</strong> {{ link.responsibilities }}</div>
                     }
 
                     @if (link.status === 'ACTIVE') {
                       <div class="scope-row">
                         @for (k of scopeKeys(); track k) {
-                          <span class="scope-chip" [class.on]="link.accessScope?.[k]" [title]="scopeLabel(k)">
+                          <span class="scope-chip" [class.on]="link.accessScope && link.accessScope[k]" [title]="scopeLabel(k)">
                             {{ scopeIcon(k) }} {{ scopeLabel(k) }}
                           </span>
                         }
@@ -197,8 +218,9 @@
                     </div>
 
                     @if (link.status === 'ACTIVE') {
-                      <div class="link-actions">
+                      <div class="link-actions" style="display: flex; gap: 0.35rem; align-items: center;">
                         <button class="btn-revoke-sm" (click)="openRevokeModal(link.id)">🚫 Revocar acceso</button>
+                        <button class="pc-btn-action" (click)="openEditLinkModal(link)" title="Editar conexión">✏️</button>
                       </div>
                     }
 
@@ -278,6 +300,12 @@
                 @if (!p.active) {
                   <span class="pc-inactive-badge">No disponible</span>
                 }
+                @if (isAdmin()) {
+                  <div class="pc-admin-actions">
+                    <button class="pc-btn-action" (click)="openEditModal(p)" title="Editar">✏️</button>
+                    <button class="pc-btn-action pc-btn-danger" (click)="deleteParticipant(p.id, p.name)" title="Eliminar">🗑️</button>
+                  </div>
+                }
               </div>
 
               @if (p.description) {
@@ -296,9 +324,21 @@
                 }
               </div>
 
-              <button class="btn-invite" (click)="openInviteModal(p)" [disabled]="!p.active">
-                @if (p.active) { + Invitar a mi red } @else { No disponible }
-              </button>
+              @if (getParticipantLink(p.id); as link) {
+                @if (link.status === 'REVOKED') {
+                  <button class="btn-invite" (click)="openInviteModal(p)" [disabled]="!p.active">
+                    + Volver a invitar
+                  </button>
+                } @else {
+                  <button class="btn-invite" [disabled]="true" [class]="'btn-status-' + link.status.toLowerCase()">
+                    {{ statusIcon(link.status) }} {{ statusLabel(link.status) }}
+                  </button>
+                }
+              } @else {
+                <button class="btn-invite" (click)="openInviteModal(p)" [disabled]="!p.active">
+                  @if (p.active) { + Invitar a mi red } @else { No disponible }
+                </button>
+              }
             </div>
           }
         </div>
@@ -369,30 +409,24 @@
           <h2>Invitar al ecosistema</h2>
         </div>
         <button class="modal-close" (click)="closeInviteModal()">✕</button>
-      </div>
-
-      <div class="modal-body">
+      </div>      <div class="modal-body">
         <label class="field-label">Objetivo de la relación</label>
         <input class="field-input" type="text" placeholder="Ej: Acompañamiento terapéutico mensual"
-               [value]="inviteForm().objective"
-               (input)="setInviteObjective($any($event.target).value)" />
+               [(ngModel)]="inviteForm.objective" name="objective" />
 
         <label class="field-label">Responsabilidades</label>
         <textarea class="field-input" rows="2"
                   placeholder="Ej: Seguimiento semanal de sprint, elaboración de informes"
-                  [value]="inviteForm().responsibilities"
-                  (input)="setInviteResponsibilities($any($event.target).value)"></textarea>
+                  [(ngModel)]="inviteForm.responsibilities" name="responsibilities"></textarea>
 
         <div class="date-row">
           <div>
             <label class="field-label">Válido desde</label>
-            <input class="field-input" type="date" [value]="inviteForm().validFrom"
-                   (input)="setInviteValidFrom($any($event.target).value)" />
+            <input class="field-input" type="date" [(ngModel)]="inviteForm.validFrom" name="validFrom" />
           </div>
           <div>
             <label class="field-label">Válido hasta</label>
-            <input class="field-input" type="date" [value]="inviteForm().validUntil"
-                   (input)="setInviteValidUntil($any($event.target).value)" />
+            <input class="field-input" type="date" [(ngModel)]="inviteForm.validUntil" name="validUntil" />
           </div>
         </div>
 
@@ -401,15 +435,14 @@
           <p class="scope-hint">Elige qué información puede ver. Podrás ajustarlo al dar consentimiento.</p>
           <div class="scope-grid">
             @for (k of scopeKeys(); track k) {
-              <label class="scope-toggle" [class.checked]="inviteForm().scope[k]">
-                <input type="checkbox" [checked]="inviteForm().scope[k]" (change)="toggleInviteScope(k)" />
+              <label class="scope-toggle" [class.checked]="inviteForm.scope[k]">
+                <input type="checkbox" [checked]="inviteForm.scope[k]" (change)="toggleInviteScope(k)" />
                 <span class="scope-toggle-icon">{{ scopeIcon(k) }}</span>
                 {{ scopeLabel(k) }}
               </label>
             }
           </div>
         </div>
-
         @if (actionErr()) { <div class="msg-error sm">{{ actionErr() }}</div> }
       </div>
 
@@ -486,12 +519,10 @@
 
         <label class="field-label">Nombre *</label>
         <input class="field-input" type="text" placeholder="Ej: Fundación Tejiendo Redes"
-               [value]="registerForm().name"
-               (input)="setRegisterField('name', $any($event.target).value)" />
+               [(ngModel)]="registerForm.name" name="name" />
 
         <label class="field-label">Tipo de red *</label>
-        <select class="field-input" [value]="registerForm().networkType"
-                (change)="setRegisterField('networkType', $any($event.target).value)">
+        <select class="field-input" [(ngModel)]="registerForm.networkType" name="networkType">
           <option value="PROFESSIONAL">🩺 Profesional</option>
           <option value="FAMILIAR">👨‍👩‍👧 Familiar</option>
           <option value="INSTITUTIONAL">🏛️ Institucional</option>
@@ -502,35 +533,31 @@
         <label class="field-label">Descripción</label>
         <textarea class="field-input" rows="2"
                   placeholder="Breve descripción del participante y su rol de apoyo"
-                  [value]="registerForm().description"
-                  (input)="setRegisterField('description', $any($event.target).value)"></textarea>
+                  [(ngModel)]="registerForm.description" name="description"></textarea>
 
         <div class="date-row">
           <div>
             <label class="field-label">Email de contacto</label>
             <input class="field-input" type="email" placeholder="contacto@ejemplo.com"
-                   [value]="registerForm().contactEmail"
-                   (input)="setRegisterField('contactEmail', $any($event.target).value)" />
+                   [(ngModel)]="registerForm.contactEmail" name="contactEmail" />
           </div>
           <div>
             <label class="field-label">Teléfono</label>
             <input class="field-input" type="tel" placeholder="+57 300 000 0000"
-                   [value]="registerForm().contactPhone"
-                   (input)="setRegisterField('contactPhone', $any($event.target).value)" />
+                   [(ngModel)]="registerForm.contactPhone" name="contactPhone" />
           </div>
         </div>
 
         <label class="field-label">Sitio web</label>
         <input class="field-input" type="url" placeholder="https://..."
-               [value]="registerForm().website"
-               (input)="setRegisterField('website', $any($event.target).value)" />
+               [(ngModel)]="registerForm.website" name="website" />
 
         @if (actionErr()) { <div class="msg-error sm">{{ actionErr() }}</div> }
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeRegisterModal()">Cancelar</button>
         <button class="btn-primary" (click)="submitRegister()"
-                [disabled]="registerLoading() || !registerForm().name.trim()">
+                [disabled]="registerLoading() || !registerForm.name.trim()">
           @if (registerLoading()) { Guardando… } @else { Guardar en catálogo }
         </button>
       </div>
@@ -563,6 +590,117 @@
         <button class="btn-secondary" (click)="closeRevokeModal()">Cancelar</button>
         <button class="btn-revoke" (click)="submitRevoke()" [disabled]="actionLoading()">
           @if (actionLoading()) { Revocando… } @else { Confirmar revocación }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL: EDITAR PARTICIPANTE (ADMIN) ═══════════════════ -->
+@if (showEditModal()) {
+  <div class="modal-backdrop" (click)="closeEditModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>✏️ Editar participante</h2>
+        <button class="modal-close" (click)="closeEditModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">Nombre *</label>
+        <input class="field-input" type="text" placeholder="Ej: Fundación Tejiendo Redes"
+               [(ngModel)]="editForm.name" name="name" />
+
+        <label class="field-label">Tipo de red *</label>
+        <select class="field-input" [(ngModel)]="editForm.networkType" name="networkType">
+          <option value="PROFESSIONAL">🩺 Profesional</option>
+          <option value="FAMILIAR">👨‍👩‍👧 Familiar</option>
+          <option value="INSTITUTIONAL">🏛️ Institucional</option>
+          <option value="COMMUNITY">🤝 Comunitaria</option>
+          <option value="TERRITORIAL">🌍 Territorial</option>
+        </select>
+
+        <label class="field-label">Descripción</label>
+        <textarea class="field-input" rows="2"
+                  placeholder="Breve descripción del participante y su rol de apoyo"
+                  [(ngModel)]="editForm.description" name="description"></textarea>
+
+        <div class="date-row">
+          <div>
+            <label class="field-label">Email de contacto</label>
+            <input class="field-input" type="email" placeholder="contacto@ejemplo.com"
+                   [(ngModel)]="editForm.contactEmail" name="contactEmail" />
+          </div>
+          <div>
+            <label class="field-label">Teléfono</label>
+            <input class="field-input" type="tel" placeholder="+57 300 000 0000"
+                   [(ngModel)]="editForm.contactPhone" name="contactPhone" />
+          </div>
+        </div>
+
+        <label class="field-label">Sitio web</label>
+        <input class="field-input" type="url" placeholder="https://..."
+               [(ngModel)]="editForm.website" name="website" />
+
+        @if (actionErr()) { <div class="msg-error sm">{{ actionErr() }}</div> }
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeEditModal()">Cancelar</button>
+        <button class="btn-primary" (click)="submitEdit()"
+                [disabled]="editLoading() || !editForm.name.trim()">
+          @if (editLoading()) { Guardando… } @else { Guardar cambios }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL: EDITAR DETALLES DE LA CONEXIÓN ═══════════════════ -->
+@if (showEditLinkModal()) {
+  <div class="modal-backdrop" (click)="closeEditLinkModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>✏️ Editar detalles de la conexión</h2>
+        <button class="modal-close" (click)="closeEditLinkModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">Objetivo de la relación</label>
+        <input class="field-input" type="text" placeholder="Ej: Acompañamiento terapéutico mensual"
+               [(ngModel)]="editLinkForm.objective" name="objective" />
+
+        <label class="field-label">Responsabilidades</label>
+        <textarea class="field-input" rows="2"
+                  placeholder="Ej: Seguimiento semanal de sprint, elaboración de informes"
+                  [(ngModel)]="editLinkForm.responsibilities" name="responsibilities"></textarea>
+
+        <div class="date-row">
+          <div>
+            <label class="field-label">Válido desde</label>
+            <input class="field-input" type="date" [(ngModel)]="editLinkForm.validFrom" name="validFrom" />
+          </div>
+          <div>
+            <label class="field-label">Válido hasta</label>
+            <input class="field-input" type="date" [(ngModel)]="editLinkForm.validUntil" name="validUntil" />
+          </div>
+        </div>
+
+        <div class="scope-section">
+          <label class="field-label">Alcance del acceso</label>
+          <div class="scope-grid">
+            @for (k of scopeKeys(); track k) {
+              <label class="scope-toggle" [class.checked]="editLinkForm.scope[k]">
+                <input type="checkbox" [checked]="editLinkForm.scope[k]" (change)="toggleEditLinkScope(k)" />
+                <span class="scope-toggle-icon">{{ scopeIcon(k) }}</span>
+                {{ scopeLabel(k) }}
+              </label>
+            }
+          </div>
+        </div>
+
+        @if (actionErr()) { <div class="msg-error sm">{{ actionErr() }}</div> }
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeEditLinkModal()">Cancelar</button>
+        <button class="btn-primary" (click)="submitEditLink()" [disabled]="editLinkLoading()">
+          @if (editLinkLoading()) { Guardando… } @else { Guardar cambios }
         </button>
       </div>
     </div>

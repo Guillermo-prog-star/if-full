@@ -59,6 +59,12 @@ public class TrajectoryService {
         RiskTrajectory traj = trajectoryRepo.findByCode(code)
             .orElseThrow(() -> new IllegalArgumentException("Trayectoria no encontrada: " + code));
 
+        Optional<FamilyRiskTrajectory> existing = familyTrajectoryRepo.findByFamilyIdAndTrajectoryId(familyId, traj.getId());
+        if (existing.isPresent()) {
+            log.info("Trayectoria {} ya estaba asignada a la familia {}", code, familyId);
+            return toFamilyDto(existing.get());
+        }
+
         FamilyRiskTrajectory frt = FamilyRiskTrajectory.builder()
             .family(family)
             .trajectory(traj)

@@ -20,7 +20,7 @@ public class SupportAccessLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "assignment_id", nullable = false)
+    @Column(name = "assignment_id", nullable = true)
     private Long assignmentId;
 
     @Column(name = "family_id", nullable = false)

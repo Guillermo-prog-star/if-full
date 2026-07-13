@@ -76,19 +76,36 @@ export class EcosystemPageComponent implements OnInit {
   readonly pendingInviteParticipant = signal<EcosystemParticipant | null>(null);
   readonly actionLoading     = signal(false);
 
-  // ── Admin: registro de participante ──────────────────────────────────
+  // ── Admin: registro y edición de participante ───────────────────────
   readonly showRegisterModal  = signal(false);
-  readonly registerForm       = signal<RegisterParticipantRequest>({ ...DEFAULT_REGISTER });
+  registerForm: RegisterParticipantRequest = { ...DEFAULT_REGISTER };
   readonly registerLoading    = signal(false);
 
-  readonly inviteForm = signal<InviteForm>({
+  readonly showEditModal      = signal(false);
+  editForm: RegisterParticipantRequest = { ...DEFAULT_REGISTER };
+  editingParticipantId: number | null = null;
+  readonly editLoading        = signal(false);
+
+  inviteForm: InviteForm = {
     participantId: null,
     objective: '',
     responsibilities: '',
     validFrom: '',
     validUntil: '',
     scope: { ...DEFAULT_SCOPE }
-  });
+  };
+
+  readonly showEditLinkModal  = signal(false);
+  editLinkForm: InviteForm = {
+    participantId: null,
+    objective: '',
+    responsibilities: '',
+    validFrom: '',
+    validUntil: '',
+    scope: { ...DEFAULT_SCOPE }
+  };
+  editingLinkId: number | null = null;
+  readonly editLinkLoading     = signal(false);
 
   readonly consentForm = signal<ConsentForm>({
     linkId: 0,
@@ -150,14 +167,14 @@ export class EcosystemPageComponent implements OnInit {
 
   openInviteModal(participant: EcosystemParticipant) {
     this.pendingInviteParticipant.set(participant);
-    this.inviteForm.set({
+    this.inviteForm = {
       participantId: participant.id,
       objective: '',
       responsibilities: '',
       validFrom: '',
       validUntil: '',
       scope: { ...DEFAULT_SCOPE }
-    });
+    };
     this.showInviteModal.set(true);
     this.clearMessages();
   }
@@ -165,7 +182,7 @@ export class EcosystemPageComponent implements OnInit {
   closeInviteModal() { this.showInviteModal.set(false); this.pendingInviteParticipant.set(null); }
 
   submitInvite() {
-    const f = this.inviteForm();
+    const f = this.inviteForm;
     if (!f.participantId) return;
     this.actionLoading.set(true);
     this.clearMessages();
@@ -186,6 +203,56 @@ export class EcosystemPageComponent implements OnInit {
         this.loadSummary();
       }
     });
+  }
+
+  // ── Editar Detalles de Conexión en Mi Red ──────────────────────────────
+  openEditLinkModal(link: EcosystemLink) {
+    this.editingLinkId = link.id;
+    this.editLinkForm = {
+      participantId: link.participant?.id ?? null,
+      objective: link.objective ?? '',
+      responsibilities: link.responsibilities ?? '',
+      validFrom: link.validFrom ?? '',
+      validUntil: link.validUntil ?? '',
+      scope: link.accessScope ? { ...link.accessScope } : { ...DEFAULT_SCOPE }
+    };
+    this.showEditLinkModal.set(true);
+    this.clearMessages();
+  }
+
+  closeEditLinkModal() {
+    this.showEditLinkModal.set(false);
+    this.editingLinkId = null;
+  }
+
+  submitEditLink() {
+    if (this.editingLinkId == null) return;
+    const f = this.editLinkForm;
+    this.editLinkLoading.set(true);
+    this.clearMessages();
+    this.svc.updateLink(this.familyId, this.editingLinkId, {
+      objective: f.objective || undefined,
+      responsibilities: f.responsibilities || undefined,
+      validFrom: f.validFrom || null,
+      validUntil: f.validUntil || null,
+      accessScope: f.scope
+    }).pipe(
+      catchError(err => {
+        this.actionErr.set(err?.error?.message ?? 'Error al actualizar los detalles de la conexión.');
+        return of(null);
+      })
+    ).subscribe(link => {
+      this.editLinkLoading.set(false);
+      if (link) {
+        this.showEditLinkModal.set(false);
+        this.actionMsg.set('Detalles de conexión actualizados correctamente.');
+        this.loadSummary();
+      }
+    });
+  }
+
+  toggleEditLinkScope(key: keyof EcosystemAccessScope) {
+    this.editLinkForm.scope[key] = !this.editLinkForm.scope[key];
   }
 
   openConsentModal(link: EcosystemLink) {
@@ -240,7 +307,7 @@ export class EcosystemPageComponent implements OnInit {
   }
 
   toggleInviteScope(key: keyof EcosystemAccessScope) {
-    this.inviteForm.update(f => ({ ...f, scope: { ...f.scope, [key]: !f.scope[key] } }));
+    this.inviteForm.scope[key] = !this.inviteForm.scope[key];
   }
 
   toggleConsentScope(key: keyof EcosystemAccessScope) {
@@ -253,18 +320,14 @@ export class EcosystemPageComponent implements OnInit {
 
   // ── Admin: registro de participante ──────────────────────────────────
   openRegisterModal() {
-    this.registerForm.set({ ...DEFAULT_REGISTER });
+    this.registerForm = { ...DEFAULT_REGISTER };
     this.showRegisterModal.set(true);
     this.clearMessages();
   }
   closeRegisterModal() { this.showRegisterModal.set(false); }
 
-  setRegisterField<K extends keyof RegisterParticipantRequest>(key: K, val: RegisterParticipantRequest[K]) {
-    this.registerForm.update(f => ({ ...f, [key]: val }));
-  }
-
   submitRegister() {
-    const f = this.registerForm();
+    const f = this.registerForm;
     if (!f.name.trim()) return;
     this.registerLoading.set(true);
     this.clearMessages();
@@ -283,10 +346,65 @@ export class EcosystemPageComponent implements OnInit {
     });
   }
 
-  setInviteObjective(v: string)        { this.inviteForm.update(f => ({ ...f, objective: v })); }
-  setInviteResponsibilities(v: string) { this.inviteForm.update(f => ({ ...f, responsibilities: v })); }
-  setInviteValidFrom(v: string)        { this.inviteForm.update(f => ({ ...f, validFrom: v })); }
-  setInviteValidUntil(v: string)       { this.inviteForm.update(f => ({ ...f, validUntil: v })); }
+  // ── Admin: edición y desactivación de participante ──────────────────
+  openEditModal(p: EcosystemParticipant) {
+    this.editingParticipantId = p.id;
+    this.editForm = {
+      name: p.name,
+      networkType: p.networkType,
+      description: p.description || '',
+      contactEmail: p.contactEmail || '',
+      contactPhone: p.contactPhone || '',
+      website: p.website || ''
+    };
+    this.showEditModal.set(true);
+    this.clearMessages();
+  }
+
+  closeEditModal() {
+    this.showEditModal.set(false);
+    this.editingParticipantId = null;
+  }
+
+  submitEdit() {
+    if (this.editingParticipantId == null) return;
+    const f = this.editForm;
+    if (!f.name.trim()) return;
+    this.editLoading.set(true);
+    this.clearMessages();
+    this.svc.updateParticipant(this.editingParticipantId, f).pipe(
+      catchError(err => {
+        this.actionErr.set(err?.error?.message ?? 'Error al actualizar el participante.');
+        return of(null);
+      })
+    ).subscribe(p => {
+      this.editLoading.set(false);
+      if (p) {
+        this.showEditModal.set(false);
+        this.actionMsg.set(`"${p.name}" actualizado en el catálogo correctamente.`);
+        this.catalog.update(list => list.map(item => item.id === p.id ? p : item));
+      }
+    });
+  }
+
+  deleteParticipant(id: number, name: string) {
+    if (!confirm(`¿Estás seguro de que deseas eliminar a "${name}" del catálogo?`)) {
+      return;
+    }
+    this.actionLoading.set(true);
+    this.clearMessages();
+    this.svc.deleteParticipant(id).pipe(
+      catchError(err => {
+        this.actionErr.set(err?.error?.message ?? 'Error al eliminar el participante.');
+        return of(null);
+      })
+    ).subscribe(() => {
+      this.actionLoading.set(false);
+      this.actionMsg.set(`Participante eliminado del catálogo.`);
+      this.catalog.update(list => list.filter(item => item.id !== id));
+    });
+  }
+
   setRevokeReason(v: string)           { this.revokeReason.set(v); }
 
   networkLabel(t: NetworkType | string): string {
@@ -319,9 +437,22 @@ export class EcosystemPageComponent implements OnInit {
     return m[s] ?? '•';
   }
 
-  formatDate(iso: string | null | undefined): string {
+  formatDate(iso: any): string {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    if (Array.isArray(iso)) {
+      if (iso.length >= 3) {
+        const year = iso[0];
+        const month = String(iso[1]).padStart(2, '0');
+        const day = String(iso[2]).padStart(2, '0');
+        return `${day}/${month}/${year}`;
+      }
+      return '—';
+    }
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) {
+      return String(iso);
+    }
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   scopeKeys(): (keyof EcosystemAccessScope)[] {
@@ -370,5 +501,12 @@ export class EcosystemPageComponent implements OnInit {
   activeScopeCount(link: EcosystemLink): number {
     if (!link.accessScope) return 0;
     return Object.values(link.accessScope).filter(Boolean).length;
+  }
+
+  getParticipantLink(participantId: number): EcosystemLink | undefined {
+    const links = this.allLinksInOrder().filter(l => l.participant?.id === participantId);
+    if (links.length === 0) return undefined;
+    const activeOrInvited = links.find(l => l.status !== 'REVOKED');
+    return activeOrInvited || links[0];
   }
 }

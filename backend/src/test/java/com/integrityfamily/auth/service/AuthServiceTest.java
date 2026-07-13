@@ -10,6 +10,7 @@ import com.integrityfamily.domain.repository.FamilyRepository;
 import com.integrityfamily.domain.repository.PasswordResetTokenRepository;
 import com.integrityfamily.domain.repository.RoleRepository;
 import com.integrityfamily.domain.repository.UserRepository;
+import com.integrityfamily.ecosystem.repository.FamilyEcosystemLinkRepository;
 import com.integrityfamily.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +65,7 @@ class AuthServiceTest {
     @Mock AccountLockService     accountLockService;
     @Mock AuditService           auditService;
     @Mock RefreshTokenService    refreshTokenService;
+    @Mock FamilyEcosystemLinkRepository linkRepository;
 
     @InjectMocks
     AuthService authService;

@@ -123,6 +123,12 @@
               <span class="badge-since">desde {{ formatDate(selected()!.consentedAt) }}</span>
             </div>
           </div>
+
+          <div style="margin-left: 20px; display: flex; align-items: center;">
+            <button (click)="enterObserverMode()" class="obs-btn" style="background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; border: none; padding: 10px 18px; font-weight: bold; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25); transition: all 0.2s;">
+              <span>👁️</span><span>Entrar en Modo Observador</span>
+            </button>
+          </div>
           <div class="fh-scope">
             @for (dot of scopeDots(selected()!.accessScope); track dot.key) {
               <span class="scope-chip" [class.on]="dot.on" [title]="dot.label">{{ dot.label }}</span>
@@ -206,6 +212,21 @@
                 </div>
               }
 
+            </div>
+
+            <!-- Resumen Clínico Asistido por IA -->
+            <div class="ai-summary-card" style="margin-top: 24px; padding: 18px; background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.25); border-radius: 12px; font-family: inherit; box-shadow: 0 4px 20px rgba(124, 58, 237, 0.05);">
+              <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; color: #a78bfa; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                <span>💡</span><span>Resumen Clínico Asistido por IA</span>
+              </div>
+              <p style="font-size: 12.5px; line-height: 1.6; color: rgba(255, 255, 255, 0.85); margin: 0 0 14px 0; font-weight: 500; white-space: pre-line;">
+                {{ generateAiSummaryText() }}
+              </p>
+              <div style="display: flex; gap: 10px;">
+                <button (click)="copyToClinicalNote()" style="background: rgba(124, 58, 237, 0.2); border: 1px solid rgba(124, 58, 237, 0.4); color: #ddd6fe; font-size: 11px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                  <span>✍️</span><span>Usar como Nota de Acompañamiento</span>
+                </button>
+              </div>
             </div>
 
             <div class="access-notice">
@@ -296,25 +317,25 @@
 
             <div class="fg-row">
               <label>Nombre completo</label>
-              <input [value]="editFullName()" (input)="editFullName.set($any($event.target).value)" placeholder="Tu nombre completo"/>
+              <input [ngModel]="editFullName()" (ngModelChange)="editFullName.set($event)" placeholder="Tu nombre completo"/>
             </div>
             <div class="fg-row">
               <label>Número de licencia / matrícula</label>
-              <input [value]="editLicense()" (input)="editLicense.set($any($event.target).value)" placeholder="Ej: PSI-12345"/>
+              <input [ngModel]="editLicense()" (ngModelChange)="editLicense.set($event)" placeholder="Ej: PSI-12345"/>
             </div>
             <div class="fg-row">
               <label>Institución u organización</label>
-              <input [value]="editInstitution()" (input)="editInstitution.set($any($event.target).value)" placeholder="Nombre de la institución o consultorio"/>
+              <input [ngModel]="editInstitution()" (ngModelChange)="editInstitution.set($event)" placeholder="Nombre de la institución o consultorio"/>
             </div>
             <div class="fg-row">
               <label>Teléfono de contacto (opcional)</label>
-              <input [value]="editPhone()" (input)="editPhone.set($any($event.target).value)" placeholder="+57 300 000 0000"/>
+              <input [ngModel]="editPhone()" (ngModelChange)="editPhone.set($event)" placeholder="+57 300 000 0000"/>
             </div>
             <div class="fg-row">
               <label>Presentación / bio</label>
               <textarea rows="5"
-                [value]="editBio()"
-                (input)="editBio.set($any($event.target).value)"
+                [ngModel]="editBio()"
+                (ngModelChange)="editBio.set($event)"
                 placeholder="Cuéntale a las familias tu enfoque, experiencia y cómo puedes acompañarlas…">
               </textarea>
             </div>

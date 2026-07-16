@@ -81,6 +81,12 @@ export class FamilyStateService {
     } else {
       localStorage.removeItem('selectedFamilyHomeId');
     }
+    // currentMilestone viaja en FamilyResponse — se sincroniza aquí para que
+    // esté disponible en cualquier flujo que llame setFamily() (login, registro,
+    // Hogar Digital), no solo donde alguien llame setMilestone() explícitamente.
+    if (family.currentMilestone) {
+      this.setMilestone(family.currentMilestone);
+    }
   }
 
   /**

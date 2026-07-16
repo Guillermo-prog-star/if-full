@@ -73,6 +73,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/family-home/family-home-page.component').then(m => m.FamilyHomePageComponent)
       },
       {
+        path: 'hud',
+        title: 'HUD Adaptativo',
+        loadComponent: () => import('./features/hud/shell/adaptive-hud-shell.component').then(m => m.AdaptiveHudShellComponent)
+      },
+      {
         path: 'portal/invisible-stories',
         title: 'Historias Invisibles',
         loadComponent: () => import('./features/portal-familiar/invisible-stories/invisible-stories.component').then(m => m.InvisibleStoriesComponent)
@@ -286,7 +291,7 @@ export const routes: Routes = [
           .then(m => m.ProfessionalDashboardComponent)
       },
 
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
+      { path: '', redirectTo: 'family-home', pathMatch: 'full' }
     ]
   },
 

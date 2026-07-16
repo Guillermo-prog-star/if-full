@@ -1,27 +1,15 @@
 # IFA-HUD Data Classification & Governance
 
-This document establishes the official data classification levels, access rules, and governance policies for all metrics and narrative fields exposed via the IFA-HUD.
+Estado real de la clasificación de datos y control de acceso en el IFA-HUD, verificado contra el código (2026-07). Reemplaza una versión anterior de este documento que describía un modelo de 3 niveles con enforcement en runtime (`HudEvidencePolicyGate`, clasificaciones `SHADOW_ONLY`/`RESEARCH_ONLY`/`RESTRICTED`, telemetría `HUD_RESOURCE_CONCEALED`) que nunca llegó a cablearse — la clase vivía sin ningún llamador real y fue eliminada.
 
-## 1. Data Classification Levels
+## Lo que sí existe y está cableado
 
-To ensure patient/client confidentiality and comply with HIPAA/GDPR clinical research requirements, data points are classified into three strict tiers:
+1. **Separación por endpoint/rol** (`HudAuthorizationPolicy`, `hud.permissions`): decide quién puede llamar `GET /hud/family` vs `GET /hud/professional` según `ViewerRole` (`ADULT_MEMBER`, `YOUNG_MEMBER`, `SUPPORT_PERSON`) o permisos explícitos (`VIEW_FAMILY_HUD`, `VIEW_PROFESSIONAL_HUD`).
+2. **Separación por módulo** (`HudModulePolicy`, `hud.policy`): fija qué bloques de contenido puede devolver cada tipo de HUD (p. ej. `NOTES`/`INTERVENTIONS`/`ASSESSMENT` solo en `PROFESSIONAL`).
+3. **Evidencia narrativa de la familia** (`EvidencePolicy`, `EvidencePolicyGate`, `dto.home` / `familyhome.policy`): único mecanismo real de "clasificación de contenido" hoy. Tiene **un solo valor posible: `FAMILY_APPROVED`** — el constructor de `NarrativeProvenance` rechaza cualquier otro valor. `EvidencePolicyGate.isAllowed()` es deny-by-default: solo dejar pasar contenido `FAMILY_APPROVED`.
 
-### Tier 1: PUBLIC / SHARED
-- **Definition**: General metadata containing no clinical assessments, metrics, or personal health records.
-- **Allowed Elements**: Family Display Name, Member Roles, Journey Stage (e.g., ONBOARDING, ENGAGED).
-- **HUD Exposure**: Allowed on all HUD contexts (Family and Professional).
+## Lo que no existe todavía
 
-### Tier 2: CLINICAL / PROFESSIONAL
-- **Definition**: Granular relational indicators, clinical assessment indicators, and professional logs.
-- **Allowed Elements**: ICaF score, clinical capacity indicators, therapist logs, and intervention recommendations.
-- **HUD Exposure**: STRICTLY restricted to the Professional HUD. Excluded from the Family HUD at the serialization level.
+No hay ningún dato en el sistema clasificado como clínico-restringido o de investigación. La fuente actual de narrativas (`FamilyNarrativeQueryPortAdapter`) fija `"FAMILY_APPROVED"` como string literal para todo lo que produce — el comentario del propio archivo explica por qué: `FamilyDocumentary` (la entidad real) no persiste todavía ningún metadato de procedencia/clasificación. El panel profesional (`ProfessionalHudProjectionResolver`) tampoco filtra nada por clasificación: sus notas clínicas e intervenciones son literales fijos, no contenido clasificado dinámicamente.
 
-### Tier 3: RESEARCH & SHADOW (SHADOW_ONLY)
-- **Definition**: Experimental psychological models, raw safety signals, and unvalidated pilot data.
-- **Allowed Elements**: Unverified safety triggers, experimental telemetry.
-- **HUD Exposure**: Hidden by default from both family and professional HUDs. Exposed only under explicit research context flags.
-
-## 2. Policy Enforcement & Auditing
-
-- **Access Policy**: The `HudEvidencePolicyGate` enforces runtime validation, rejecting elements tagged with `SHADOW_ONLY` from serializing into family schemas.
-- **Auditing**: Internal telemetry registers errors as distinct states (`HUD_RESOURCE_NOT_FOUND`, `HUD_RESOURCE_CONCEALED`) for log analysis, while returning a uniform public `404 NOT_FOUND` layout to the API caller to mitigate enumeration attacks.
+Antes de construir un tercer nivel (investigación) o un filtrado real Tier 2, el primer paso es que algún módulo (`documentary`, `assessment`, `ai`) empiece a persistir una clasificación real. Sin esa fuente de datos, cualquier gate adicional sería, otra vez, código sin nada que proteger.

@@ -150,7 +150,7 @@ describe('RegisterPageComponent', () => {
   // ═══════════════════════════════════════════════════════════════════════
 
   describe('submit() — modo VOUCHER', () => {
-    it('debe navegar a /dashboard cuando el servidor devuelve familyId', fakeAsync(() => {
+    it('debe navegar a /family-home cuando el servidor devuelve familyId', fakeAsync(() => {
       const auth = buildAuthSpy();
       auth.register.and.returnValue(of({ user: { familyId: 10 } }));
       const { component, router } = buildComponent(auth);
@@ -159,7 +159,7 @@ describe('RegisterPageComponent', () => {
       component.submit();
       tick();
 
-      expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+      expect(router.navigate).toHaveBeenCalledWith(['/family-home']);
     }));
 
     it('debe navegar a /families/create cuando no hay familyId', fakeAsync(() => {
@@ -210,7 +210,7 @@ describe('RegisterPageComponent', () => {
   // ═══════════════════════════════════════════════════════════════════════
 
   describe('submit() — modo NEW_FAMILY', () => {
-    it('debe navegar a /dashboard tras registro exitoso de familia', fakeAsync(() => {
+    it('debe navegar a /family-home tras registro exitoso de familia', fakeAsync(() => {
       const auth = buildAuthSpy();
       auth.registerFamily.and.returnValue(of({ token: 'tok', user: { familyId: 20 } }));
       const { component, router } = buildComponent(auth);
@@ -220,7 +220,7 @@ describe('RegisterPageComponent', () => {
       component.submit();
       tick();
 
-      expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+      expect(router.navigate).toHaveBeenCalledWith(['/family-home']);
     }));
 
     it('debe mostrar mensaje de error del servidor en fallo de creación de familia', fakeAsync(() => {

@@ -60,7 +60,7 @@ public class FamilyMembershipQueryPortAdapter implements FamilyMembershipQueryPo
         if (family == null) {
             return false;
         }
-        if (family.getCreatedBy() != null && family.getCreatedBy().getEmail().equalsIgnoreCase(user.getEmail())) {
+        if (isCreator(family, user)) {
             return true;
         }
 
@@ -99,12 +99,16 @@ public class FamilyMembershipQueryPortAdapter implements FamilyMembershipQueryPo
             return List.of();
         }
         if (isAdmin(user)) {
-            return List.of("READ", "WRITE");
+            // ROLE_ADMIN tiene bypass total en el resto del sistema (SecurityValidator,
+            // FamilySecurityEvaluator, isMember() de esta misma clase); getRole() no
+            // resuelve ADMIN a ningún ViewerRole propio (el enum no lo contempla) y cae
+            // en ADULT_MEMBER, así que sin estos permisos explícitos HudAuthorizationPolicy
+            // bloqueaba al admin del HUD Profesional pese al bypass en todo lo demás.
+            return List.of("READ", "WRITE", "VIEW_FAMILY_HUD", "VIEW_PROFESSIONAL_HUD");
         }
 
         Family family = familyRepository.findById(fId.get()).orElse(null);
-        if (family != null && family.getCreatedBy() != null
-                && family.getCreatedBy().getEmail().equalsIgnoreCase(user.getEmail())) {
+        if (family != null && isCreator(family, user)) {
             return List.of("READ", "WRITE");
         }
 
@@ -121,5 +125,16 @@ public class FamilyMembershipQueryPortAdapter implements FamilyMembershipQueryPo
     private boolean isAdmin(User user) {
         return user.getRoles() != null
                 && user.getRoles().stream().anyMatch(role -> "ROLE_ADMIN".equals(role.getName()));
+    }
+
+    /**
+     * Compara por ID, no por email: family.getCreatedBy() es un proxy Hibernate
+     * (@ManyToOne LAZY). Su .getId() no dispara inicialización (Hibernate lo resuelve
+     * sin sesión activa), pero cualquier otro getter sí — y esta clase no corre dentro
+     * de una transacción, así que .getEmail() lanzaba LazyInitializationException para
+     * cualquier usuario no-admin (el admin nunca lo sufría porque isAdmin() retorna antes).
+     */
+    private boolean isCreator(Family family, User user) {
+        return family.getCreatedBy() != null && family.getCreatedBy().getId().equals(user.getId());
     }
 }

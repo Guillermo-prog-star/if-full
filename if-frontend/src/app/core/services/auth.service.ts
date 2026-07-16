@@ -72,7 +72,7 @@ export class AuthService {
           this.saveUserToStorage(userData);
           this._user.set(userData);
           if (userData.familyId) {
-            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia' });
+            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia', homeId: res.user?.homeId });
           }
         }
       })
@@ -102,7 +102,7 @@ export class AuthService {
           this.saveUserToStorage(userData);
           this._user.set(userData);
           if (userData.familyId) {
-            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia' });
+            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia', homeId: res.user?.homeId });
           }
         }
       })
@@ -127,7 +127,7 @@ export class AuthService {
           this.saveUserToStorage(userData);
           this._user.set(userData);
           if (userData.familyId) {
-            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia' });
+            this.familyState.setFamily({ id: userData.familyId, name: userData.familyName || 'Familia', homeId: res.user?.homeId });
           }
         }
       })

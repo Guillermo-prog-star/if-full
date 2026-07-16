@@ -7,13 +7,10 @@
     </div>
 
     <div class="header-right">
-      <!-- Role and Switch Mode -->
+      <!-- La vista (Familiar/Profesional) la decide el rol de login, no un control manual -->
       <span class="role-badge" *ngIf="viewData?.viewerContext?.role">
         Rol: {{ viewData?.viewerContext?.role }}
       </span>
-      <button class="toggle-mode-btn" (click)="toggleHudType()">
-        🔄 Cambiar Vista a {{ viewData?.hudType === 'PROFESSIONAL' ? 'Familiar' : 'Profesional' }}
-      </button>
     </div>
   </header>
 

@@ -3,6 +3,7 @@ package com.integrityfamily.familyhome.api;
 import com.integrityfamily.familyhome.application.exception.*;
 import com.integrityfamily.hud.api.AdaptiveHudController;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,6 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.net.URI;
 import java.time.Instant;
 
+@Slf4j
 @RestControllerAdvice(assignableTypes = {FamilyHomeController.class, FamilyActionController.class, AdaptiveHudController.class})
 @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
 public final class FamilyHomeExceptionHandler {
@@ -152,6 +154,7 @@ public final class FamilyHomeExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
+        log.error("[FAMILY-HOME] Excepción no controlada en {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         problem.setTitle("Error interno del servidor");
         problem.setDetail("Ha ocurrido un error inesperado al procesar la solicitud.");

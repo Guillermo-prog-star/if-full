@@ -22,10 +22,16 @@ public class FamilyPresentationPolicy {
         }
     }
 
+    /**
+     * currentRiskLevel se calcula y persiste en español (RiskAlgoV1Engine,
+     * RiskService, FamilyCausalEngine: "BAJO"/"MODERADO"/"MEDIO"/"ALTO"/"CRITICO"),
+     * nunca en inglés — comparar contra "HIGH"/"MEDIUM" nunca coincidía con datos
+     * reales y esta alerta no se disparaba jamás (ver ADR-002, action item 9).
+     */
     public static String formatRisk(String riskLevel) {
-        if ("HIGH".equalsIgnoreCase(riskLevel)) {
+        if ("CRITICO".equalsIgnoreCase(riskLevel) || "ALTO".equalsIgnoreCase(riskLevel)) {
             return "Es un buen momento para pedir apoyo o programar un espacio de conversación tranquila.";
-        } else if ("MEDIUM".equalsIgnoreCase(riskLevel)) {
+        } else if ("MEDIO".equalsIgnoreCase(riskLevel) || "MODERADO".equalsIgnoreCase(riskLevel)) {
             return "Esta semana la familia tiene una gran oportunidad para fortalecer la comunicación.";
         } else {
             return "El ambiente familiar se encuentra estable y protector.";

@@ -193,6 +193,79 @@ class LongitudinalStateServiceTest {
             assertThat(s.getDimHabitos()).isEqualTo(68.0);
             assertThat(s.getDimTiempos()).isEqualTo(90.0);
         }
+
+        @Test
+        @DisplayName("dimScore = 90 (umbral exacto) → streak incrementa")
+        void plenoStreak_incrementsAtExactThreshold() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(2);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 75.0, 90.0, 0, 0, 0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("dimScore = 89 (justo bajo el umbral) → streak resetea a 0")
+        void plenoStreak_resetsJustBelowThreshold() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(2);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 75.0, 89.0, 0, 0, 0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isZero();
+        }
+
+        @Test
+        @DisplayName("dimensión no llega en el evento (0) → streak no se toca")
+        void plenoStreak_untouched_whenDimensionAbsent() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(3);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 75.0, 0, 0, 0, 0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("las 4 dimensiones sostienen PLENO en el mismo ciclo → los 4 streaks incrementan de forma independiente")
+        void allFourStreaks_incrementIndependently() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(1);
+            s.setComunicacionPlenoStreak(2);
+            s.setHabitosPlenoStreak(0);
+            s.setTiemposPlenoStreak(4);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 95.0, 95.0, 92.0, 90.0, 100.0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isEqualTo(2);
+            assertThat(s.getComunicacionPlenoStreak()).isEqualTo(3);
+            assertThat(s.getHabitosPlenoStreak()).isEqualTo(1);
+            assertThat(s.getTiemposPlenoStreak()).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("una dimensión cae bajo el umbral mientras otra lo sostiene → streaks se mueven de forma independiente")
+        void streaks_moveIndependentlyAcrossDimensions() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(3);
+            s.setComunicacionPlenoStreak(3);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 80.0, 60.0, 91.0, 0, 0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isZero();
+            assertThat(s.getComunicacionPlenoStreak()).isEqualTo(4);
+        }
     }
 
     // ─── onJournalEntryAdded ──────────────────────────────────────────────────

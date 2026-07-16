@@ -38,6 +38,9 @@ public class LongitudinalStateService {
     private final FamilyRepository familyRepository;
     private final FamilyCausalEngine causalEngine;
 
+    /** Umbral de dimScore para contar un ciclo como PLENO sostenido (ADR-003). */
+    private static final int PLENO_THRESHOLD = 90;
+
     // ── Reacciones a eventos del bus ──────────────────────────────────────────
 
     /**
@@ -95,13 +98,40 @@ public class LongitudinalStateService {
         state.setIcfCurrent(event.newIcf());
         state.setCurrentRiskLevel(event.newRiskLevel());
 
-        // Sincronizar dimensiones si vienen en el evento
-        if (event.emociones() > 0)    state.setDimEmociones(event.emociones());
-        if (event.comunicacion() > 0) state.setDimComunicacion(event.comunicacion());
-        if (event.habitos() > 0)      state.setDimHabitos(event.habitos());
-        if (event.tiempos() > 0)      state.setDimTiempos(event.tiempos());
+        // Sincronizar dimensiones si vienen en el evento, y actualizar el
+        // streak de PLENO sostenido de cada una (ADR-003 — Identidad Familiar
+        // inferida, no autoevaluada). Solo se evalúa el streak cuando la
+        // dimensión realmente llega en este evento, igual que su sincronización.
+        if (event.emociones() > 0) {
+            state.setDimEmociones(event.emociones());
+            state.setEmocionesPlenoStreak(nextPlenoStreak(event.emociones(), state.getEmocionesPlenoStreak()));
+        }
+        if (event.comunicacion() > 0) {
+            state.setDimComunicacion(event.comunicacion());
+            state.setComunicacionPlenoStreak(nextPlenoStreak(event.comunicacion(), state.getComunicacionPlenoStreak()));
+        }
+        if (event.habitos() > 0) {
+            state.setDimHabitos(event.habitos());
+            state.setHabitosPlenoStreak(nextPlenoStreak(event.habitos(), state.getHabitosPlenoStreak()));
+        }
+        if (event.tiempos() > 0) {
+            state.setDimTiempos(event.tiempos());
+            state.setTiemposPlenoStreak(nextPlenoStreak(event.tiempos(), state.getTiemposPlenoStreak()));
+        }
 
         longitudinalRepo.save(state);
+    }
+
+    /**
+     * Streak de ciclos consecutivos con dimScore >= PLENO_THRESHOLD (ADR-003).
+     * Incrementa si el nuevo valor sostiene el umbral; resetea a 0 en caso
+     * contrario. IDENTITY_STREAK_THRESHOLD (3) es el mismo estándar de
+     * evidencia que DETERIORATION_THRESHOLD en FamilyCausalEngine, aplicado
+     * en sentido positivo — no se declara aquí, se compara donde se consuma.
+     */
+    private int nextPlenoStreak(double dimScore, Integer currentStreak) {
+        int streak = currentStreak != null ? currentStreak : 0;
+        return dimScore >= PLENO_THRESHOLD ? streak + 1 : 0;
     }
 
     /**

@@ -2,10 +2,13 @@ package com.integrityfamily.risk.service;
 
 import com.integrityfamily.common.event.*;
 import com.integrityfamily.capital.service.IcafScoringEngine;
+import com.integrityfamily.domain.EvidenceSource;
 import com.integrityfamily.domain.Family;
 import com.integrityfamily.domain.FamilyLongitudinalState;
+import com.integrityfamily.domain.HypothesisEvidence;
 import com.integrityfamily.domain.repository.FamilyLongitudinalStateRepository;
 import com.integrityfamily.domain.repository.FamilyRepository;
+import com.integrityfamily.domain.repository.HypothesisEvidenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -37,9 +40,16 @@ public class LongitudinalStateService {
     private final FamilyLongitudinalStateRepository longitudinalRepo;
     private final FamilyRepository familyRepository;
     private final FamilyCausalEngine causalEngine;
+    private final HypothesisEvidenceRepository hypothesisEvidenceRepo;
 
     /** Umbral de dimScore para contar un ciclo como PLENO sostenido (ADR-003). */
     private static final int PLENO_THRESHOLD = 90;
+
+    /** Identificador y versión de la hipótesis PAF (ADR-003/ADR-005). */
+    private static final String PAF_HYPOTHESIS = "PAF";
+    private static final String PAF_HYPOTHESIS_VERSION = "v1";
+    private static final String ICF_INSTRUMENT = "ICF";
+    private static final String ICF_INSTRUMENT_VERSION = "1";
 
     // ── Reacciones a eventos del bus ──────────────────────────────────────────
 
@@ -102,24 +112,50 @@ public class LongitudinalStateService {
         // streak de PLENO sostenido de cada una (ADR-003 — Identidad Familiar
         // inferida, no autoevaluada). Solo se evalúa el streak cuando la
         // dimensión realmente llega en este evento, igual que su sincronización.
+        // Cada dimensión también escribe su observación cruda en
+        // hypothesis_evidence (ADR-005): el dimScore, no el streak — para que
+        // el streak pueda verificarse de forma independiente después.
         if (event.emociones() > 0) {
             state.setDimEmociones(event.emociones());
             state.setEmocionesPlenoStreak(nextPlenoStreak(event.emociones(), state.getEmocionesPlenoStreak()));
+            recordPafEvidence(event.familyId(), "DIM_EMOCIONES", event.emociones(), event.occurredAt());
         }
         if (event.comunicacion() > 0) {
             state.setDimComunicacion(event.comunicacion());
             state.setComunicacionPlenoStreak(nextPlenoStreak(event.comunicacion(), state.getComunicacionPlenoStreak()));
+            recordPafEvidence(event.familyId(), "DIM_COMUNICACION", event.comunicacion(), event.occurredAt());
         }
         if (event.habitos() > 0) {
             state.setDimHabitos(event.habitos());
             state.setHabitosPlenoStreak(nextPlenoStreak(event.habitos(), state.getHabitosPlenoStreak()));
+            recordPafEvidence(event.familyId(), "DIM_HABITOS", event.habitos(), event.occurredAt());
         }
         if (event.tiempos() > 0) {
             state.setDimTiempos(event.tiempos());
             state.setTiemposPlenoStreak(nextPlenoStreak(event.tiempos(), state.getTiemposPlenoStreak()));
+            recordPafEvidence(event.familyId(), "DIM_TIEMPOS", event.tiempos(), event.occurredAt());
         }
 
         longitudinalRepo.save(state);
+    }
+
+    /**
+     * Escribe una observación cruda de PAF en hypothesis_evidence (ADR-005).
+     * Nunca actualiza una fila existente — cada llamada inserta una nueva.
+     */
+    private void recordPafEvidence(Long familyId, String measurementType, double dimScore, LocalDateTime observedAt) {
+        hypothesisEvidenceRepo.save(HypothesisEvidence.builder()
+                .hypothesis(PAF_HYPOTHESIS)
+                .hypothesisVersion(PAF_HYPOTHESIS_VERSION)
+                .subjectType("FAMILY")
+                .subjectId(familyId)
+                .measurementType(measurementType)
+                .measurementValue(dimScore)
+                .instrument(ICF_INSTRUMENT)
+                .instrumentVersion(ICF_INSTRUMENT_VERSION)
+                .source(EvidenceSource.AUTOMATIC)
+                .observedAt(observedAt != null ? observedAt : LocalDateTime.now())
+                .build());
     }
 
     /**

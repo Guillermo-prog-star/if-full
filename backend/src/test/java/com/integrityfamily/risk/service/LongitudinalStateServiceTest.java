@@ -3,14 +3,18 @@ package com.integrityfamily.risk.service;
 import com.integrityfamily.common.event.FamilyCrisisEvent;
 import com.integrityfamily.common.event.FamilyIcfRecalculatedEvent;
 import com.integrityfamily.common.event.FamilyJournalEntryEvent;
+import com.integrityfamily.domain.EvidenceSource;
 import com.integrityfamily.domain.Family;
 import com.integrityfamily.domain.FamilyLongitudinalState;
+import com.integrityfamily.domain.HypothesisEvidence;
 import com.integrityfamily.domain.repository.FamilyLongitudinalStateRepository;
 import com.integrityfamily.domain.repository.FamilyRepository;
+import com.integrityfamily.domain.repository.HypothesisEvidenceRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +33,7 @@ class LongitudinalStateServiceTest {
     @Mock FamilyLongitudinalStateRepository longitudinalRepo;
     @Mock FamilyRepository                  familyRepository;
     @Mock FamilyCausalEngine                causalEngine;
+    @Mock HypothesisEvidenceRepository      hypothesisEvidenceRepo;
 
     @InjectMocks LongitudinalStateService service;
 
@@ -265,6 +270,75 @@ class LongitudinalStateServiceTest {
 
             assertThat(s.getEmocionesPlenoStreak()).isZero();
             assertThat(s.getComunicacionPlenoStreak()).isEqualTo(4);
+        }
+
+        // ─── hypothesis_evidence (ADR-005) ──────────────────────────────────
+
+        @Test
+        @DisplayName("dimensión presente → escribe una fila de evidencia con los campos correctos")
+        void writesHypothesisEvidence_withCorrectFields() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            LocalDateTime observedAt = LocalDateTime.of(2026, 7, 16, 10, 0);
+            FamilyIcfRecalculatedEvent event = new FamilyIcfRecalculatedEvent(
+                    FAM_ID, 70.0, 75.0, "MODERADO", "BAJO", 92.0, 0, 0, 0, "ASSESSMENT", observedAt);
+
+            service.onIcfRecalculated(event);
+
+            ArgumentCaptor<HypothesisEvidence> captor = ArgumentCaptor.forClass(HypothesisEvidence.class);
+            verify(hypothesisEvidenceRepo).save(captor.capture());
+            HypothesisEvidence saved = captor.getValue();
+
+            assertThat(saved.getHypothesis()).isEqualTo("PAF");
+            assertThat(saved.getHypothesisVersion()).isEqualTo("v1");
+            assertThat(saved.getSubjectType()).isEqualTo("FAMILY");
+            assertThat(saved.getSubjectId()).isEqualTo(FAM_ID);
+            assertThat(saved.getMeasurementType()).isEqualTo("DIM_EMOCIONES");
+            assertThat(saved.getMeasurementValue()).isEqualTo(92.0);
+            assertThat(saved.getInstrument()).isEqualTo("ICF");
+            assertThat(saved.getInstrumentVersion()).isEqualTo("1");
+            assertThat(saved.getSource()).isEqualTo(EvidenceSource.AUTOMATIC);
+            assertThat(saved.getObservedAt()).isEqualTo(observedAt);
+        }
+
+        @Test
+        @DisplayName("dimensión ausente (0) → no se escribe evidencia para esa dimensión")
+        void dimensionAbsent_noEvidenceWritten() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 75.0, 85.0, 0, 0, 0));
+
+            verify(hypothesisEvidenceRepo, times(1)).save(any());
+        }
+
+        @Test
+        @DisplayName("las 4 dimensiones presentes → 4 filas de evidencia, una por dimensión")
+        void allFourDimensions_writeFourEvidenceRows() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 90.0, 85.0, 72.0, 68.0, 90.0));
+
+            verify(hypothesisEvidenceRepo, times(4)).save(any());
+        }
+
+        @Test
+        @DisplayName("escribir evidencia no altera el streak operacional calculado (ADR-003 intacto)")
+        void evidenceWriting_doesNotAffectOperationalStreak() {
+            FamilyLongitudinalState s = state(0, 0, 0, 0);
+            s.setEmocionesPlenoStreak(2);
+            when(longitudinalRepo.findByFamilyId(FAM_ID)).thenReturn(Optional.of(s));
+            when(longitudinalRepo.save(any())).thenReturn(s);
+
+            service.onIcfRecalculated(icfEvent(70.0, 90.0, 95.0, 0, 0, 0));
+
+            assertThat(s.getEmocionesPlenoStreak()).isEqualTo(3);
+            verify(hypothesisEvidenceRepo, times(1)).save(any());
         }
     }
 

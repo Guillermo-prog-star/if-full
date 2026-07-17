@@ -1,6 +1,6 @@
 # Integrity Family — Visión y Principios
 
-**Última actualización:** 2026-07-13  
+**Última actualización:** 2026-07-16  
 **Versión del sistema:** v1.1.9
 
 ---
@@ -25,6 +25,8 @@ Integrity Family no es solo una plataforma con una buena teoría — se sostiene
 | **Antropológica** | Qué es una familia, un hogar, cuidar, amar, heredar | Esta sección |
 
 Toda arquitectura computacional oculta una antropología, la reconozca o no. Integrity Family prefiere hacerla explícita — y, como el resto del proyecto, sujeta a la Regla V1.1.1 de evolución metodológica basada en evidencia: esto es un marco conceptual propuesto, no una tesis antropológica demostrada.
+
+**Alcance de la Regla V1.1.1:** nació acotada a `scenario_bank` (`docs/Validacion_Tecnica_Piloto_V1.1.md`), pero gobierna hoy **toda hipótesis científica o conductual incorporada al modelo de Integrity Family** — no "todo el sistema" (módulos sin hipótesis que validar, como autenticación, caché o mensajería, quedan fuera). El mecanismo que la sostiene es `hypothesis_evidence` (ADR-004): ninguna hipótesis —incluida esta capa antropológica, si llegara a formalizarse en constructos medibles como PAF (ADR-003)— se considera validada usando solo estado operacional; requiere evidencia longitudinal reproducible, registrada aparte, versionada por hipótesis e instrumento. Ver `docs/adr/ADR-004-hypothesis-evidence-pattern.md`.
 
 ### Principio de Construcción Compartida de Significado Familiar (CCSF)
 

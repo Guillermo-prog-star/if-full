@@ -43,7 +43,7 @@ echo ""
 # Docker Desktop puede seguir iniciando (autostart con el login) cuando
 # esta tarea corre en modo "catch-up" tras un equipo dormido/apagado a
 # las 2 AM — se reintenta antes de rendirse.
-WAIT_SECONDS=180
+WAIT_SECONDS=300
 INTERVAL=10
 ELAPSED=0
 while ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${DB_CONTAINER}$"; do

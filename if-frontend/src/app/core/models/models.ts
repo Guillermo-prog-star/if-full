@@ -14,6 +14,7 @@ export interface Family {
   guardianFullName?: string | null;
   guardianSince?: string | null;
   participationScore?: number;
+  homeId?: string;
 }
 
 // ── Guardián Familiar ──────────────────────────────────────────────────────

@@ -112,6 +112,7 @@ export const routes: Routes = [
         path: 'admin',
         canActivate: [adminGuard],
         children: [
+          { path: 'families', title: 'Familias Registradas', loadComponent: () => import('./features/admin/families/families-list.component').then(m => m.AdminFamiliesListComponent) },
           { path: 'stats', loadComponent: () => import('./features/admin/stats/stats.component').then(m => m.StatsComponent) },
           { path: 'voice-monitor', loadComponent: () => import('./features/admin/voice-monitor/voice-monitor.component').then(m => m.VoiceMonitorComponent) },
           { path: 'sandbox', loadComponent: () => import('./features/admin/sandbox/sandbox.component').then(m => m.SandboxComponent) },

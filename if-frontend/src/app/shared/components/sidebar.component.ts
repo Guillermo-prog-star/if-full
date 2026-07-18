@@ -343,6 +343,7 @@ import { filter } from 'rxjs/operators';
           <div class="divider"></div>
           <div class="nav-section nav-section--admin">
             <div class="section-label">ADMINISTRACIÓN</div>
+            <a routerLink="/admin/families"      class="nav-item" routerLinkActive="active"><span class="nav-icon">👨‍👩‍👧‍👦</span><span class="nav-text">Familias Registradas</span></a>
             <a routerLink="/admin/stats"         class="nav-item" routerLinkActive="active"><span class="nav-icon">⚙️</span><span class="nav-text">Estadísticas</span></a>
             <a routerLink="/admin/eedsl"         class="nav-item" routerLinkActive="active"><span class="nav-icon">🔧</span><span class="nav-text">Reglas EEDSL</span></a>
             <a routerLink="/admin/sandbox"       class="nav-item" routerLinkActive="active"><span class="nav-icon">🧪</span><span class="nav-text">Sandbox</span></a>

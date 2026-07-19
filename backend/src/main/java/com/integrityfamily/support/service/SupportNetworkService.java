@@ -220,28 +220,50 @@ public class SupportNetworkService {
     // ─────────────────────────────────────────────────────────────────────
 
     @Transactional
-    public NoteResponse addNote(Long familyId, AddNoteRequest req, Long supportMemberId) {
-        FamilySupportAssignment assignment = getAssignment(req.getAssignmentId(), familyId);
+    public NoteResponse addNote(Long familyId, AddNoteRequest req, String professionalEmail, Long supportMemberId) {
+        Optional<FamilySupportAssignment> assignmentOpt = assignmentRepository.findById(req.getAssignmentId());
+        if (assignmentOpt.isPresent()) {
+            FamilySupportAssignment assignment = assignmentOpt.get();
+            if (!assignment.getFamilyId().equals(familyId)) {
+                throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+            if (assignment.getStatus() != AssignmentStatus.ACTIVE) {
+                throw new BusinessException("Solo se pueden agregar notas en asignaciones activas.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+            if (!assignment.isCanLeaveNotes()) {
+                throw new BusinessException("Este profesional no tiene permiso para dejar notas.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+            if (!assignment.getSupportMember().getId().equals(supportMemberId)) {
+                throw new BusinessException("No autorizado para esta asignación.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+            }
+            return toNoteResponse(noteRepository.save(buildNote(familyId, assignment.getId(), supportMemberId, req)));
+        }
 
-        if (assignment.getStatus() != AssignmentStatus.ACTIVE) {
-            throw new BusinessException("Solo se pueden agregar notas en asignaciones activas.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+        // Camino Ecosistema de Apoyo -- mismo patrón dual que getDataView()
+        // (ver V109): un profesional conectado vía FamilyEcosystemLink no
+        // tiene FamilySupportAssignment, pero sí puede tener acceso legítimo.
+        FamilyEcosystemLink link = linkRepository.findById(req.getAssignmentId())
+                .orElseThrow(() -> new BusinessException("Asignación no encontrada.", "SUPPORT_NOT_FOUND", HttpStatus.NOT_FOUND));
+        if (!link.getFamilyId().equals(familyId)) {
+            throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
         }
-        if (!assignment.isCanLeaveNotes()) {
-            throw new BusinessException("Este profesional no tiene permiso para dejar notas.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+        if (!link.getParticipant().getContactEmail().equalsIgnoreCase(professionalEmail)) {
+            throw new BusinessException("No autorizado.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
         }
-        if (!assignment.getSupportMember().getId().equals(supportMemberId)) {
-            throw new BusinessException("No autorizado para esta asignación.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
+        if (link.getStatus() != EcosystemLinkStatus.ACTIVE) {
+            throw new BusinessException("El vínculo no está activo.", "SUPPORT_FORBIDDEN", HttpStatus.FORBIDDEN);
         }
+        return toNoteResponse(noteRepository.save(buildNote(familyId, link.getId(), supportMemberId, req)));
+    }
 
-        SupportProfessionalNote note = SupportProfessionalNote.builder()
-                .assignmentId(assignment.getId())
+    private SupportProfessionalNote buildNote(Long familyId, Long assignmentId, Long supportMemberId, AddNoteRequest req) {
+        return SupportProfessionalNote.builder()
+                .assignmentId(assignmentId)
                 .familyId(familyId)
                 .supportMemberId(supportMemberId)
                 .content(req.getContent())
                 .visibleToFamily(req.isVisibleToFamily())
                 .build();
-
-        return toNoteResponse(noteRepository.save(note));
     }
 
     // ─────────────────────────────────────────────────────────────────────

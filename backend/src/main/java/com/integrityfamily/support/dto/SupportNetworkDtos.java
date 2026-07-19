@@ -149,6 +149,20 @@ public class SupportNetworkDtos {
         private String licenseNumber;
     }
 
+    // ── Borrador de nota de seguimiento profesional (ADR-006) ──────────────
+
+    @Data @Builder
+    public static class FollowUpDraftResponse {
+        private Long draftId;
+        private Long familyId;
+        private Long assignmentId;
+        private LocalDateTime generatedAt;
+        private String generatorType;
+        private String templateVersion;
+        private String narrativeText;
+        private List<String> warnings;
+    }
+
     // ── Log de accesos del profesional ────────────────────────────────────
 
     @Builder

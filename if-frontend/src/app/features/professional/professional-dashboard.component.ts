@@ -55,6 +55,17 @@ export interface ProfessionalProfile {
   bio: string | null;
 }
 
+export interface FollowUpDraftResponse {
+  draftId: number;
+  familyId: number;
+  assignmentId: number;
+  generatedAt: string;
+  generatorType: string;
+  templateVersion: string;
+  narrativeText: string;
+  warnings: string[];
+}
+
 type MainTab = 'families' | 'profile';
 type FamilyTab = 'data' | 'notes' | 'audit';
 
@@ -91,6 +102,10 @@ export class ProfessionalDashboardComponent implements OnInit {
 
   readonly noteContent    = signal('');
   readonly noteVisible    = signal(true);
+
+  readonly followUpDraft  = signal<FollowUpDraftResponse | null>(null);
+  readonly draftLoading   = signal(false);
+  readonly draftError     = signal<string | null>(null);
 
   readonly editBio          = signal('');
   readonly editPhone        = signal('');
@@ -147,6 +162,8 @@ export class ProfessionalDashboardComponent implements OnInit {
     this.familyTab.set('data');
     this.noteSuccess.set(false);
     this.noteContent.set('');
+    this.followUpDraft.set(null);
+    this.draftError.set(null);
     this.loadDataView(f);
   }
 
@@ -281,69 +298,40 @@ export class ProfessionalDashboardComponent implements OnInit {
     this.router.navigate(['/evaluations/evolution']);
   }
 
-  generateAiSummaryText(): string {
-    const v = this.dataView();
-    if (!v) return '';
-    
-    const todayStr = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' });
-    const specialtyLabel = this.specialtyMap()[v.specialty ?? ''] ?? v.specialty ?? 'Médico Cirujano';
-    
-    let icfText = 'No registrado';
-    let dirText = 'Estable';
-    if (v.icfScore !== null) {
-      dirText = v.icfDirection === 'IMPROVING' ? 'en mejoría progresiva (↑)' :
-                v.icfDirection === 'DECLINING' ? 'en retroceso (↓)' :
-                v.icfDirection === 'CRITICAL_DECLINE' ? 'en retroceso crítico (↓↓)' : 'estable (→)';
-      icfText = `${v.icfScore.toFixed(1)} (${v.icfLabel}), con tendencia ${dirText}`;
-    }
-    
-    const riskText = v.riskLevel ? `${v.riskLevel}${v.sentinelActive ? ' (ALERTA: Centinela Activo)' : ''}` : 'No determinado';
-    const sprintText = v.hasActiveSprint ? `Activo (Estado: ${v.activeSprintStatus})` : 'Sin sprint activo';
-    const planText = v.planSummaryAvailable ? 'Autorizado y en ejecución' : 'No autorizado / No disponible';
-    const crisisText = v.crisisHistoryAvailable ? 'Habilitado para seguimiento longitudinal' : 'No disponible';
-    
-    let recomendacionesPlan = '';
-    if (v.sentinelActive || v.riskLevel === 'ALTO') {
-      recomendacionesPlan += `• Activar de inmediato el protocolo de mitigación de crisis y revisar disparadores históricos.\n`;
-    } else if (v.riskLevel === 'MODERADO') {
-      recomendacionesPlan += `• Monitorear indicadores de salud familiar y ajustar dosificación de tareas en el Plan de Mejora.\n`;
-    }
-    if (v.icfDirection === 'DECLINING' || v.icfDirection === 'CRITICAL_DECLINE') {
-      recomendacionesPlan += `• Recomendar la realización de un Consejo Familiar orientado a fortalecer la comunicación asertiva y reevaluar la cohesión relacional.\n`;
-    } else {
-      recomendacionesPlan += `• Reforzar el cumplimiento de rituales diarios para consolidar la estabilidad relacional lograda.\n`;
-    }
-    
-    return `Nota de Seguimiento – Ecosistema Integrity Family
+  // ── Borrador de nota de seguimiento (ADR-006) ───────────────────────────
+  // Generado en backend por ProfessionalFollowUpDraftService -- este
+  // componente ya no arma el texto, solo dispara la generación y muestra
+  // el resultado versionado y auditado.
 
-Fecha: ${todayStr}
-Profesional: ${specialtyLabel} – Ecosistema Integrity Family
+  private readonly warningLabels: Record<string, string> = {
+    REQUIRES_PROFESSIONAL_REVIEW: 'Requiere revisión, edición y aprobación del profesional.',
+    NOT_A_CLINICAL_DIAGNOSIS: 'No constituye diagnóstico clínico.'
+  };
 
-1. DATOS OBJETIVOS DEL SISTEMA
-• ICaF: ${icfText}
-• Nivel de Riesgo Global: ${riskText}
-• Adherencia / Sprint Familiar: ${sprintText}
-• Plan de Mejora Familiar: ${planText}
-• Historial de Crisis: ${crisisText}
+  draftWarningText(): string {
+    const warnings = this.followUpDraft()?.warnings ?? [];
+    return warnings.map(w => this.warningLabels[w] ?? w).join(' ');
+  }
 
-2. OBSERVACIÓN CLÍNICA
-• [Espacio para que el profesional documente los hallazgos directamente constatados durante el teleacompañamiento o sesión presencial].
-
-3. INTERPRETACIÓN PROFESIONAL
-• Los indicadores obtenidos sugieren una cohesión familiar que requiere seguimiento estructurado. Estos resultados provienen de un instrumento de tamizaje y no constituyen por sí mismos un diagnóstico clínico. Con la información aportada por la plataforma, no existen elementos suficientes para concluir la existencia de violencia intrafamiliar, trastornos específicos o diagnósticos definitivos.
-
-4. PLAN DE INTERVENCIÓN
-• Realizar observación clínica mediante el Modo Observador para verificar el desarrollo de las misiones del Sprint Familiar.
-• Analizar el cumplimiento de las metas semanales e identificar barreras.
-${recomendacionesPlan}• Ajustar el Plan de Mejora de acuerdo con la evidencia obtenida en el seguimiento.
-• Mantener vigilancia sobre eventos críticos en el Historial de Crisis y activar rutas de protección de ser necesario.
-
-5. PRÓXIMA REEVALUACIÓN
-• Se sugiere nueva reevaluación tras completar el Sprint Familiar activo o ante la aparición de alertas en el protocolo Sentinel.`;
+  generateFollowUpDraft() {
+    const f = this.selected();
+    if (!f) return;
+    this.draftLoading.set(true);
+    this.draftError.set(null);
+    this.http.post<FollowUpDraftResponse>(
+      `${this.base}/families/${f.familyId}/support/follow-up-drafts?assignmentId=${f.id}`, {}
+    ).pipe(catchError(() => {
+      this.draftError.set('No se pudo generar el borrador.');
+      return of(null);
+    })).subscribe(d => {
+      this.followUpDraft.set(d);
+      this.draftLoading.set(false);
+    });
   }
 
   copyToClinicalNote() {
-    const text = this.generateAiSummaryText();
+    const text = this.followUpDraft()?.narrativeText;
+    if (!text) return;
     this.noteContent.set(text);
     this.familyTab.set('notes');
   }

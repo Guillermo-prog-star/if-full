@@ -214,22 +214,39 @@
 
             </div>
 
-            <!-- Borrador de Nota de Acompañamiento (plantilla determinista, sin IA) -->
+            <!-- Borrador de Nota de Acompañamiento (generado en backend, ADR-006) -->
             <div class="ai-summary-card" style="margin-top: 24px; padding: 18px; background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.25); border-radius: 12px; font-family: inherit; box-shadow: 0 4px 20px rgba(124, 58, 237, 0.05);">
               <div style="display: flex; align-items: center; gap: 8px; font-weight: 800; color: #a78bfa; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
                 <span>📝</span><span>Borrador de Nota de Acompañamiento</span>
               </div>
-              <p style="font-size: 12.5px; line-height: 1.6; color: rgba(255, 255, 255, 0.85); margin: 0 0 14px 0; font-weight: 500; white-space: pre-line;">
-                {{ generateAiSummaryText() }}
-              </p>
-              <p style="font-size: 11px; line-height: 1.5; color: rgba(255, 255, 255, 0.55); margin: 0 0 14px 0; font-style: italic;">
-                ⚠️ Generado automáticamente a partir de datos registrados en Integrity Family. Requiere revisión, edición y aprobación del profesional. No constituye diagnóstico clínico.
-              </p>
-              <div style="display: flex; gap: 10px;">
-                <button (click)="copyToClinicalNote()" style="background: rgba(124, 58, 237, 0.2); border: 1px solid rgba(124, 58, 237, 0.4); color: #ddd6fe; font-size: 11px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
-                  <span>✍️</span><span>Revisar y editar borrador</span>
+
+              @if (!followUpDraft()) {
+                <p style="font-size: 12.5px; line-height: 1.6; color: rgba(255, 255, 255, 0.6); margin: 0 0 14px 0;">
+                  Genera un borrador a partir de los datos actuales de esta familia.
+                </p>
+                @if (draftError()) {
+                  <p style="font-size: 11.5px; color: #fca5a5; margin: 0 0 10px 0;">{{ draftError() }}</p>
+                }
+                <button (click)="generateFollowUpDraft()" [disabled]="draftLoading()"
+                  style="background: rgba(124, 58, 237, 0.2); border: 1px solid rgba(124, 58, 237, 0.4); color: #ddd6fe; font-size: 11px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <span>{{ draftLoading() ? '⏳' : '📝' }}</span><span>{{ draftLoading() ? 'Generando...' : 'Generar borrador' }}</span>
                 </button>
-              </div>
+              } @else {
+                <p style="font-size: 12.5px; line-height: 1.6; color: rgba(255, 255, 255, 0.85); margin: 0 0 14px 0; font-weight: 500; white-space: pre-line;">
+                  {{ followUpDraft()!.narrativeText }}
+                </p>
+                <p style="font-size: 11px; line-height: 1.5; color: rgba(255, 255, 255, 0.55); margin: 0 0 14px 0; font-style: italic;">
+                  ⚠️ Generado automáticamente a partir de datos registrados en Integrity Family ({{ followUpDraft()!.templateVersion }}). {{ draftWarningText() }}
+                </p>
+                <div style="display: flex; gap: 10px;">
+                  <button (click)="copyToClinicalNote()" style="background: rgba(124, 58, 237, 0.2); border: 1px solid rgba(124, 58, 237, 0.4); color: #ddd6fe; font-size: 11px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;">
+                    <span>✍️</span><span>Revisar y editar borrador</span>
+                  </button>
+                  <button (click)="generateFollowUpDraft()" [disabled]="draftLoading()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 700; padding: 7px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <span>{{ draftLoading() ? '⏳' : '🔄' }}</span><span>{{ draftLoading() ? 'Regenerando...' : 'Regenerar' }}</span>
+                  </button>
+                </div>
+              }
             </div>
 
             <div class="access-notice">

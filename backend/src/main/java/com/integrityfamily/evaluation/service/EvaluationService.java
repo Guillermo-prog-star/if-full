@@ -10,6 +10,7 @@ import com.integrityfamily.domain.repository.MemberRepository;
 import com.integrityfamily.domain.repository.QuestionRepository;
 import com.integrityfamily.assessment.service.AssessmentAnswerService;
 import com.integrityfamily.domain.repository.EvaluationAnswerRepository;
+import com.integrityfamily.domain.repository.HypothesisEvidenceRepository;
 import com.integrityfamily.risk.service.RiskAlgoV1Engine;
 import com.integrityfamily.risk.service.RiskService;
 import com.integrityfamily.milestone.service.MilestoneService;
@@ -76,6 +77,11 @@ public class EvaluationService {
     private final AlertEngine alertEngine;
     private final UserNotificationService userNotificationService;
     private final com.integrityfamily.risk.service.LongitudinalStateService longitudinalStateService;
+    private final HypothesisEvidenceRepository hypothesisEvidenceRepository;
+
+    /** Identificador y versión de la hipótesis de Interrupción Deliberativa (ADR-007). */
+    private static final String DELIBERATIVE_INTERRUPTION_HYPOTHESIS = "DELIBERATIVE_INTERRUPTION_HYPOTHESIS";
+    private static final String DELIBERATIVE_INTERRUPTION_HYPOTHESIS_VERSION = "v1";
 
     public List<Evaluation> findAll() {
         return evaluationRepository.findAll();
@@ -206,6 +212,11 @@ public class EvaluationService {
             existing.setImpulsiveAwareness(algo.neuroProfile().getImpulsiveAwareness());
             existing.setPauseCapacity(algo.neuroProfile().getPauseCapacity());
             existing.setIntegrationScore(algo.neuroProfile().getIntegrationScore());
+            recordPauseCapacityEvidence(
+                    existing.getFamily().getId(),
+                    algo.neuroProfile().getPauseCapacity(),
+                    existing.getAlgorithmVersion(),
+                    existing.getFinalizedAt());
         }
         existing.setRiskLevel(algo.riskLevel());
         existing.setCriticalDimension(algo.criticalDimension());
@@ -352,6 +363,28 @@ public class EvaluationService {
 
         Evaluation saved = evaluationRepository.save(eval);
         processPostFinalization(saved, null);
+    }
+
+    /**
+     * Escribe una observación cruda de Interrupción Deliberativa en hypothesis_evidence (ADR-007).
+     * Nunca actualiza una fila existente — cada llamada inserta una nueva.
+     * Solo se invoca cuando neuroProfile != null (evaluación con preguntas neuro-conductuales) —
+     * pauseCapacity es un double primitivo y nunca es null, así que llamar esto fuera de ese
+     * guard escribiría 0.0 como si fuera "ausencia de pausa" en vez de "no se preguntó".
+     */
+    private void recordPauseCapacityEvidence(Long familyId, double pauseCapacity, String algorithmVersion, LocalDateTime observedAt) {
+        hypothesisEvidenceRepository.save(HypothesisEvidence.builder()
+                .hypothesis(DELIBERATIVE_INTERRUPTION_HYPOTHESIS)
+                .hypothesisVersion(DELIBERATIVE_INTERRUPTION_HYPOTHESIS_VERSION)
+                .subjectType("FAMILY")
+                .subjectId(familyId)
+                .measurementType("PAUSE_CAPACITY")
+                .measurementValue(pauseCapacity)
+                .instrument(algorithmVersion != null ? algorithmVersion : "RISK_ALGO_V1")
+                .instrumentVersion("1")
+                .source(EvidenceSource.AUTOMATIC)
+                .observedAt(observedAt != null ? observedAt : LocalDateTime.now())
+                .build());
     }
 
     private void processPostFinalization(Evaluation saved, RiskAlgoV1Engine.AlgoResult algo) {

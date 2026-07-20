@@ -3,6 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-07-20
 **Deciders:** William Lopez
+**Instrumento de campo:** [ADR-009-cuadernillo-fase4-biologico.html](./ADR-009-cuadernillo-fase4-biologico.html) — cuadernillo imprimible, campos 1:1 con `DailyVitalityLog` (Decisión 1)
 
 ## Context
 

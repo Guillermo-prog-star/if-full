@@ -50,7 +50,8 @@ import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
         "com.integrityfamily.documentation.domain",
         "com.integrityfamily.ecosystem.domain",
         "com.integrityfamily.support.domain",
-        "com.integrityfamily.consent.domain"
+        "com.integrityfamily.consent.domain",
+        "com.integrityfamily.vitality.domain"
 })
 public class IntegrityFamilyApplication {
 

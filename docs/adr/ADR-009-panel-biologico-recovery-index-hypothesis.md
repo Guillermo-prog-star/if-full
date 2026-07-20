@@ -1,6 +1,6 @@
 # ADR-009: `DailyVitalityLog` — Fase 4 (base biológica) y `RECOVERY_INDEX_HYPOTHESIS`
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-20
 **Deciders:** William Lopez
 **Instrumento de campo:** [ADR-009-cuadernillo-fase4-biologico.html](./ADR-009-cuadernillo-fase4-biologico.html) — cuadernillo imprimible, campos 1:1 con `DailyVitalityLog` (Decisión 1)
@@ -96,10 +96,14 @@ Frente a no registrar nada y esperar a que el documento completo esté validado:
 
 ## Action Items
 
-1. [ ] Migración `V110__daily_vitality_log.sql` — tabla `daily_vitality_logs` (Decisión 1), única por `family_member_id`+`log_date`.
-2. [ ] Módulo nuevo `vitality`: entidad `DailyVitalityLog`, `DailyVitalityLogRepository`, `VitalityService` (registrar log, listar por miembro/rango de fechas), `VitalityController` (`POST/GET /api/families/{id}/members/{memberId}/vitality`).
-3. [ ] `RecoveryIndexService.calculate(familyMemberId, windowDays)` — calcula el índice 0-100 y escribe fila en `hypothesis_evidence` vía `RECOVERY_INDEX_HYPOTHESIS`/`v1` (Decisión 2).
-4. [ ] Registrar `RECOVERY_INDEX_HYPOTHESIS` / `v1` en la tabla de hipótesis activas de [ADR-004](./ADR-004-hypothesis-evidence-pattern.md).
-5. [ ] Semáforo como campo calculado en el DTO de respuesta (Decisión 3), sin persistencia propia.
-6. [ ] Tests unitarios: log con campos parciales se guarda correctamente; índice se calcula solo con los campos presentes en la ventana; escritura en `hypothesis_evidence` con los campos correctos.
-7. [ ] Verificación contra MySQL real (Docker) vía `FamilyLifecycleIntegrationTest` + suite completa, mismo patrón que ADR-005/007/008.
+1. [x] Migración `V110__daily_vitality_log.sql` — tabla `daily_vitality_logs` (Decisión 1), única por `family_member_id`+`log_date`.
+2. [x] Módulo nuevo `vitality`: entidad `DailyVitalityLog`, `DailyVitalityLogRepository`, `VitalityService` (registrar log — upsert que solo sobreescribe campos presentes, listar por miembro/rango de fechas, valida que el miembro pertenezca a la familia), `VitalityController` (`POST/GET /api/families/{familyId}/members/{memberId}/vitality`, `GET .../recovery-index`).
+3. [x] `RecoveryIndexService.calculateAndRecord(familyId, familyMemberId, windowDays)` — calcula el índice 0-100 (fórmula v1 documentada en Javadoc: media de sueño/ejercicio/nutrición/fatiga-invertida sobre los componentes presentes) y escribe fila en `hypothesis_evidence` vía `RECOVERY_INDEX_HYPOTHESIS`/`v1` (Decisión 2). Retorna `null` sin escribir nada cuando la ventana no tiene ningún dato.
+4. [x] Registrado `RECOVERY_INDEX_HYPOTHESIS` / `v1` en la tabla de hipótesis activas de [ADR-004](./ADR-004-hypothesis-evidence-pattern.md).
+5. [x] Semáforo (`RecoveryIndexService.semaphore()`) como campo calculado en `RecoveryIndexResponse`, sin persistencia propia (Decisión 3).
+6. [x] Tests unitarios (22 nuevos, `VitalityServiceTest` + `RecoveryIndexServiceTest`): upsert con campos parciales conserva lo ya guardado; membresía familia/miembro validada; fórmula v1 correcta por componente y promediada entre días de la ventana; ventana sin datos → `null` sin escritura; escritura en `hypothesis_evidence` con los campos correctos; umbrales del semáforo.
+7. [x] Verificado contra MySQL real (Docker) vía `FamilyLifecycleIntegrationTest` (6/6) y suite completa del backend (2121/2121).
+
+### Nota de implementación — `@EntityScan` explícito
+
+`IntegrityFamilyApplication` restringe el escaneo de entidades JPA a una lista explícita de paquetes (no un prefijo `com.integrityfamily.*`) — sin agregar `com.integrityfamily.vitality.domain` a esa lista, el arranque fallaba con `BeanCreationException: Not a managed type: DailyVitalityLog`, detectado por el E2E antes de llegar a producción. Cualquier módulo nuevo futuro debe registrar su paquete `<módulo>.domain` ahí explícitamente.

@@ -93,6 +93,7 @@ Resuelve el Action Item 4: antes de que exista un segundo consumidor de `hypothe
 |---|---|---|
 | `PAF` | `v1` | ADR-003 (definición) · ADR-005 (consumidor) |
 | `DELIBERATIVE_INTERRUPTION_HYPOTHESIS` | `v1` | [ADR-007](./ADR-007-episodio-procesual-interrupcion-deliberativa.md) (definición y consumidor) |
+| `PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS` | `v1` | [ADR-008](./ADR-008-precision-anticipatoria-proxy-microsimulaciones.md) (definición y consumidor) |
 
 Toda hipótesis nueva que escriba en `hypothesis_evidence` debe agregar su fila aquí, en el ADR que la introduce, antes de su primera escritura.
 

@@ -83,6 +83,10 @@ public class EvaluationService {
     private static final String DELIBERATIVE_INTERRUPTION_HYPOTHESIS = "DELIBERATIVE_INTERRUPTION_HYPOTHESIS";
     private static final String DELIBERATIVE_INTERRUPTION_HYPOTHESIS_VERSION = "v1";
 
+    /** Identificador y versión del proxy de precisión anticipatoria intra-sesión (ADR-008). */
+    private static final String PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS = "PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS";
+    private static final String PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS_VERSION = "v1";
+
     public List<Evaluation> findAll() {
         return evaluationRepository.findAll();
     }
@@ -250,6 +254,12 @@ public class EvaluationService {
         log.info("[EVALUATION-ALGO] Evaluacion persistida. {} | {}", algo.summary(),
                 explanationPipeline.buildTechnicalSummary(algo));
 
+        // ADR-008: proxy de precisión anticipatoria (THINK vs. AFTERMATH) — después del save
+        // porque en el flujo clásico las EvaluationAnswer del request solo se persisten
+        // (cascade) al guardar `existing`; sin @Transactional en este método, una relectura
+        // anterior a este punto no las vería.
+        recordPredictiveAccuracyEvidence(saved.getFamily().getId(), saved.getId(), saved.getFinalizedAt());
+
         // IF-CIS: Registro de inferencia epistemológicamente estable (ICF_CALC base)
         try {
             inferenceRecordService.createFromEvaluation(saved, algo);
@@ -385,6 +395,70 @@ public class EvaluationService {
                 .source(EvidenceSource.AUTOMATIC)
                 .observedAt(observedAt != null ? observedAt : LocalDateTime.now())
                 .build());
+    }
+
+    /**
+     * ADR-008: por cada escenario (parent_key) de esta evaluación con respuesta registrada
+     * tanto en fase THINK como en fase AFTERMATH, escribe el par de observaciones crudas en
+     * hypothesis_evidence. Si falta cualquiera de las dos fases para un escenario, no se
+     * escribe nada para ese escenario — un par incompleto no es una observación válida.
+     * score_value == rubric_level siempre en el banco SCENARIO_V1_2 (V89-V95, verificado),
+     * así que EvaluationAnswer.score ya es directamente el rubric_level, sin volver a
+     * consultar question_options.
+     */
+    private void recordPredictiveAccuracyEvidence(Long familyId, Long evaluationId, LocalDateTime observedAt) {
+        List<EvaluationAnswer> answers = evaluationAnswerRepository.findByEvaluationIdOrderByAnsweredAtAsc(evaluationId);
+
+        List<Long> questionIds = answers.stream()
+                .map(EvaluationAnswer::getQuestionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, Question> questionById = questionRepository.findAllById(questionIds).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+
+        Map<String, Integer> thinkByParentKey = new HashMap<>();
+        Map<String, Integer> aftermathByParentKey = new HashMap<>();
+
+        for (EvaluationAnswer a : answers) {
+            Question q = questionById.get(a.getQuestionId());
+            if (q == null || q.getParentKey() == null || a.getScore() == null) continue;
+            if ("THINK".equals(q.getPhase())) thinkByParentKey.put(q.getParentKey(), a.getScore());
+            if ("AFTERMATH".equals(q.getPhase())) aftermathByParentKey.put(q.getParentKey(), a.getScore());
+        }
+
+        for (Map.Entry<String, Integer> entry : thinkByParentKey.entrySet()) {
+            String parentKey = entry.getKey();
+            Integer thinkScore = entry.getValue();
+            Integer aftermathScore = aftermathByParentKey.get(parentKey);
+            if (aftermathScore == null) continue; // par incompleto — no se escribe nada (ADR-008 Decisión 3)
+
+            hypothesisEvidenceRepository.save(HypothesisEvidence.builder()
+                    .hypothesis(PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS)
+                    .hypothesisVersion(PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS_VERSION)
+                    .subjectType("FAMILY")
+                    .subjectId(familyId)
+                    .measurementType("ANTICIPATED_THREAT_LEVEL")
+                    .measurementValue(thinkScore.doubleValue())
+                    .instrument(parentKey)
+                    .instrumentVersion("1.2.0")
+                    .source(EvidenceSource.AUTOMATIC)
+                    .observedAt(observedAt != null ? observedAt : LocalDateTime.now())
+                    .build());
+
+            hypothesisEvidenceRepository.save(HypothesisEvidence.builder()
+                    .hypothesis(PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS)
+                    .hypothesisVersion(PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS_VERSION)
+                    .subjectType("FAMILY")
+                    .subjectId(familyId)
+                    .measurementType("OUTCOME_SEVERITY_LEVEL")
+                    .measurementValue(aftermathScore.doubleValue())
+                    .instrument(parentKey)
+                    .instrumentVersion("1.2.0")
+                    .source(EvidenceSource.AUTOMATIC)
+                    .observedAt(observedAt != null ? observedAt : LocalDateTime.now())
+                    .build());
+        }
     }
 
     private void processPostFinalization(Evaluation saved, RiskAlgoV1Engine.AlgoResult algo) {

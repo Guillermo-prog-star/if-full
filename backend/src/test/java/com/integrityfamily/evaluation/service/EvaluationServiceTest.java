@@ -343,4 +343,128 @@ class EvaluationServiceTest {
             verify(hypothesisEvidenceRepository, never()).save(any());
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  finalize() — evidencia de precisión anticipatoria proxy (ADR-008)
+    // ═══════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("finalize() — hypothesis_evidence de PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS")
+    class FinalizePredictiveAccuracyEvidence {
+
+        private Evaluation existing;
+        private EvaluationDtos.EvaluationFinalizeRequest request;
+
+        @BeforeEach
+        void setUpFinalize() {
+            existing = Evaluation.builder().id(50L).family(family).build();
+            when(evaluationRepository.findById(50L)).thenReturn(Optional.of(existing));
+            when(evaluationRepository.save(any(Evaluation.class))).thenAnswer(i -> i.getArgument(0));
+
+            request = new EvaluationDtos.EvaluationFinalizeRequest(
+                    List.of(new EvaluationDtos.AnswerDto(1L, 3, null)),
+                    null, null, null);
+
+            // Sin NeuroProfile — aisla las aserciones de PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS
+            // de la evidencia de DELIBERATIVE_INTERRUPTION_HYPOTHESIS (ADR-007), que solo se
+            // escribe cuando neuroProfile != null.
+            when(riskAlgoV1Engine.compute(any(), any())).thenReturn(new RiskAlgoV1Engine.AlgoResult(
+                    Map.of("emociones", 80.0, "comunicacion", 75.0, "habitos", 70.0, "tiempos", 65.0),
+                    75.0,
+                    0.0,
+                    null,
+                    "MODERADO",
+                    "comunicacion",
+                    false,
+                    false,
+                    null,
+                    null,
+                    3,
+                    List.of(),
+                    List.of(),
+                    null));
+        }
+
+        private Question question(Long id, String parentKey, String phase) {
+            return Question.builder().id(id).questionKey("Q-" + id).parentKey(parentKey).phase(phase).build();
+        }
+
+        private EvaluationAnswer answer(Long questionId, Integer score) {
+            return EvaluationAnswer.builder().questionId(questionId).score(score).build();
+        }
+
+        @Test
+        @DisplayName("Par THINK+AFTERMATH completo → escribe exactamente 2 filas con los campos correctos")
+        void shouldRecordBothRows_whenPairComplete() {
+            Question think = question(101L, "M-POC-S1", "THINK");
+            Question aftermath = question(102L, "M-POC-S1", "AFTERMATH");
+            when(questionRepository.findAllById(any())).thenReturn(List.of(think, aftermath));
+            when(evaluationAnswerRepository.findByEvaluationIdOrderByAnsweredAtAsc(50L))
+                    .thenReturn(List.of(answer(101L, 2), answer(102L, 4)));
+
+            evaluationService.finalize(50L, request);
+
+            ArgumentCaptor<HypothesisEvidence> captor = ArgumentCaptor.forClass(HypothesisEvidence.class);
+            verify(hypothesisEvidenceRepository, times(2)).save(captor.capture());
+
+            List<HypothesisEvidence> saved = captor.getAllValues();
+            assertThat(saved).hasSize(2);
+            assertThat(saved).allSatisfy(e -> {
+                assertThat(e.getHypothesis()).isEqualTo("PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS");
+                assertThat(e.getHypothesisVersion()).isEqualTo("v1");
+                assertThat(e.getSubjectType()).isEqualTo("FAMILY");
+                assertThat(e.getSubjectId()).isEqualTo(1L);
+                assertThat(e.getInstrument()).isEqualTo("M-POC-S1");
+                assertThat(e.getInstrumentVersion()).isEqualTo("1.2.0");
+                assertThat(e.getSource()).isEqualTo(EvidenceSource.AUTOMATIC);
+                assertThat(e.getObservedAt()).isNotNull();
+            });
+
+            HypothesisEvidence anticipated = saved.stream()
+                    .filter(e -> e.getMeasurementType().equals("ANTICIPATED_THREAT_LEVEL"))
+                    .findFirst().orElseThrow();
+            assertThat(anticipated.getMeasurementValue()).isEqualTo(2.0);
+
+            HypothesisEvidence outcome = saved.stream()
+                    .filter(e -> e.getMeasurementType().equals("OUTCOME_SEVERITY_LEVEL"))
+                    .findFirst().orElseThrow();
+            assertThat(outcome.getMeasurementValue()).isEqualTo(4.0);
+        }
+
+        @Test
+        @DisplayName("Solo THINK sin AFTERMATH → no escribe ninguna fila (par incompleto)")
+        void shouldNotRecordEvidence_whenPairIncomplete() {
+            Question think = question(201L, "M-POC-S2", "THINK");
+            when(questionRepository.findAllById(any())).thenReturn(List.of(think));
+            when(evaluationAnswerRepository.findByEvaluationIdOrderByAnsweredAtAsc(50L))
+                    .thenReturn(List.of(answer(201L, 1)));
+
+            evaluationService.finalize(50L, request);
+
+            verify(hypothesisEvidenceRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Dos escenarios completos en la misma evaluación → 4 filas, cada una atribuida a su parent_key")
+        void shouldRecordIndependentPairs_forMultipleScenarios() {
+            Question think1 = question(101L, "M-POC-S1", "THINK");
+            Question aftermath1 = question(102L, "M-POC-S1", "AFTERMATH");
+            Question think2 = question(201L, "M-POC-S2", "THINK");
+            Question aftermath2 = question(202L, "M-POC-S2", "AFTERMATH");
+            when(questionRepository.findAllById(any()))
+                    .thenReturn(List.of(think1, aftermath1, think2, aftermath2));
+            when(evaluationAnswerRepository.findByEvaluationIdOrderByAnsweredAtAsc(50L))
+                    .thenReturn(List.of(answer(101L, 5), answer(102L, 1), answer(201L, 3), answer(202L, 3)));
+
+            evaluationService.finalize(50L, request);
+
+            ArgumentCaptor<HypothesisEvidence> captor = ArgumentCaptor.forClass(HypothesisEvidence.class);
+            verify(hypothesisEvidenceRepository, times(4)).save(captor.capture());
+
+            List<String> instruments = captor.getAllValues().stream()
+                    .map(HypothesisEvidence::getInstrument)
+                    .toList();
+            assertThat(instruments).containsExactlyInAnyOrder("M-POC-S1", "M-POC-S1", "M-POC-S2", "M-POC-S2");
+        }
+    }
 }

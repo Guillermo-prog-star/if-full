@@ -209,6 +209,9 @@ import { filter } from 'rxjs/operators';
             <span class="nav-icon">📔</span><span class="nav-text">Bitácora &amp; Daily</span>
             @if (isGrowing('/logbook')) { <span class="nav-growing" [title]="growingTooltip('/logbook')">🌱</span> }
           </a>
+          <a routerLink="/vitality" class="nav-item" routerLinkActive="active">
+            <span class="nav-icon">🌿</span><span class="nav-text">Bienestar Biológico</span>
+          </a>
           <a routerLink="/transformation/weekly-plan"  class="nav-item" routerLinkActive="active">
             <span class="nav-icon">📅</span><span class="nav-text">Planeación Mensual</span>
             @if (isGrowing('/transformation/weekly-plan')) { <span class="nav-growing" [title]="growingTooltip('/transformation/weekly-plan')">🌱</span> }

@@ -142,6 +142,7 @@ export const routes: Routes = [
       { path: 'logbook', title: 'Bitácora Familiar', loadComponent: () => import('./features/family-logbook/family-logbook.component').then(m => m.FamilyLogbookComponent) },
       { path: 'gratitude', title: 'Muro de Gratitud', loadComponent: () => import('./features/family-gratitude/family-gratitude.component').then(m => m.FamilyGratitudeComponent) },
       { path: 'my-space', title: 'Mi Espacio', loadComponent: () => import('./features/my-space/my-space.component').then(m => m.MySpaceComponent) },
+      { path: 'vitality', title: 'Bienestar Biológico', loadComponent: () => import('./features/vitality/vitality-page.component').then(m => m.VitalityPageComponent) },
       { path: 'cognitive', title: 'Sistema Cognitivo', loadComponent: () => import('./features/cognitive/cognitive-page.component').then(m => m.CognitivePageComponent) },
       { path: 'profile', title: 'Mi Perfil', loadComponent: () => import('./features/profile/profile-page.component').then(m => m.ProfilePageComponent) },
 

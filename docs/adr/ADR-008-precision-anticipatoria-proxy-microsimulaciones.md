@@ -1,6 +1,6 @@
 # ADR-008: `PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS` — precisión anticipatoria intra-sesión sobre `SCENARIO_V1_2`, conectada a `hypothesis_evidence`
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-20
 **Deciders:** William Lopez
 

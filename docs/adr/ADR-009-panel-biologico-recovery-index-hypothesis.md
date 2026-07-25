@@ -107,3 +107,7 @@ Frente a no registrar nada y esperar a que el documento completo esté validado:
 ### Nota de implementación — `@EntityScan` explícito
 
 `IntegrityFamilyApplication` restringe el escaneo de entidades JPA a una lista explícita de paquetes (no un prefijo `com.integrityfamily.*`) — sin agregar `com.integrityfamily.vitality.domain` a esa lista, el arranque fallaba con `BeanCreationException: Not a managed type: DailyVitalityLog`, detectado por el E2E antes de llegar a producción. Cualquier módulo nuevo futuro debe registrar su paquete `<módulo>.domain` ahí explícitamente.
+
+### Cierre del gap de frontend (2026-07-25)
+
+Al auditar, fase por fase, en qué interfaz se reporta cada etapa del método externo (mismo ejercicio que originó este ADR), Fase 4 quedó identificada como la única con backend completo pero **cero interfaz** — nadie podía registrar un `DailyVitalityLog` desde la UI. Cerrado con `vitality-page.component` (`if-frontend/src/app/features/vitality/`): selector de miembro, formulario diario (todos los campos opcionales, igual que el backend), y tarjeta de Índice de Recuperación con semáforo. Ruta `/vitality`, enlace nuevo en el sidebar (bloque "Transformación Diaria"). Verificado en navegador real contra backend real: registro guardado, fila confirmada en MySQL, índice recalculado correctamente (86.7/100 → 🟢), y precarga del formulario al recargar la página.

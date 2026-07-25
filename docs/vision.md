@@ -133,6 +133,28 @@ Mes 13-36  Entrega y Legado    — Transmitir, documentar, consolidar
 
 ---
 
+## El eje de regulación: de la biología a la identidad
+
+Las "cuatro capas del proyecto" (arriba) responden **qué es** Integrity Family. Esta sección responde algo más estrecho: **por qué camino concreto** viaja una observación de una familia — desde el dato biológico más crudo hasta su consolidación como identidad familiar. No es una quinta capa de arquitectura ni un módulo nuevo: es una forma de leer, en orden, decisiones que ya están tomadas y en producción, dispersas en varios ADRs porque cada una se descubrió por separado, contrastando propuestas externas contra el código real.
+
+| Eje | Qué mide | Dónde vive | Gobernado por |
+|---|---|---|---|
+| **Biología** | Sueño, ejercicio, nutrición, fatiga | `DailyVitalityLog`, `RecoveryIndexService` (módulo `vitality`) | `RECOVERY_INDEX_HYPOTHESIS` v1 — [ADR-009](adr/ADR-009-panel-biologico-recovery-index-hypothesis.md), `Accepted` |
+| **Regulación** | Capacidad de pausa antes de reaccionar | `pauseCapacity` (`RiskAlgoV1Engine`) | `DELIBERATIVE_INTERRUPTION_HYPOTHESIS` v1 — [ADR-007](adr/ADR-007-episodio-procesual-interrupcion-deliberativa.md), `Accepted` |
+| **Procesamiento de la experiencia** | Lo que la familia anticipa (`THINK`) vs. lo que realmente ocurre (`AFTERMATH`) en un escenario `SCENARIO_V1_2` | `EvaluationService`, banco `SCENARIO_V1_2` (V89–V95) | `PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS` v1 — [ADR-008](adr/ADR-008-precision-anticipatoria-proxy-microsimulaciones.md), `Accepted` |
+| **Convivencia** | Misiones, dailies, retrospectivas, consejo familiar, reparación de errores | módulos `bitacora`, `council`, `chat`, `errorprotocol` | Sin hipótesis propia todavía — alimenta directamente ICF/hábitos y `SprintRetrospective` |
+| **Identidad familiar** | Sostenimiento de `dimScore ≥ 90` durante `≥ 3` ciclos consecutivos, por dimensión ICF | streaks en `FamilyLongitudinalState` (`LongitudinalStateService.onIcfRecalculated()`) | PAF — [ADR-003](adr/ADR-003-identidad-familiar-como-patron-inferido.md) (`Accepted`) y [ADR-005](adr/ADR-005-paf-primer-consumidor-hypothesis-evidence.md), primer consumidor de `hypothesis_evidence` |
+
+Tres reglas mantienen este eje coherente con el resto del sistema:
+
+1. **Ninguna capa escribe directo al ICF ni dispara acciones automáticas.** Cada una primero acumula evidencia versionada en `hypothesis_evidence` ([ADR-004](adr/ADR-004-hypothesis-evidence-pattern.md)) — la promoción a señal operacional (input del ICF, disparador de `AdaptivePlanService`, alerta) requiere evidencia longitudinal real, nunca se asume al momento de instrumentar la captura.
+2. **Cada fila es la medición cruda, nunca una interpretación ya calculada** — mismo criterio en las cinco filas de la tabla: se guarda `pauseCapacity` (no "hubo pausa: sí/no"), el índice de recuperación 0-100 (no el semáforo), `dimScore` (no el streak).
+3. **El estado de un ADR es el estado real de la hipótesis.** Las cinco filas de la tabla están `Accepted` — cada una con captura implementada, tests pasando y verificación contra MySQL real. Si una fila futura se agrega en estado `Proposed`, significa que esa capa describe una decisión de diseño todavía sin construir, no un mecanismo ya operando como las demás.
+
+Como todo lo que depende de `hypothesis_evidence`, este eje está sujeto a la Regla V1.1.1: es una forma útil de narrar el sistema hoy, no una arquitectura fija — si una capa deja de sostenerse con evidencia, se ajusta o se descarta sin ceremonia.
+
+---
+
 ## Usuarios objetivo
 
 - Familias nucleares con hijos (principal)

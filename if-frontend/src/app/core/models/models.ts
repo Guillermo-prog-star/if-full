@@ -214,7 +214,7 @@ export interface PlanTask {
   riskType?: string;
   missionGenerator?: string;
 }
-export interface Plan { id: number; familyId: number; evaluationId: number; title: string; description: string; aiReport: string|null; aiGeneratedAt: string|null; status: string; vision3y?: string; tasks: PlanTask[]; }
+export interface Plan { id: number; familyId: number; evaluationId: number; title: string; description: string; aiReport: string|null; aiGeneratedAt: string|null; status: string; vision3y?: string; acceptanceStatus?: string; acceptedAt?: string|null; acceptedBy?: string|null; intentionStatement?: string|null; tasks: PlanTask[]; }
 
 // Checklist
 export interface ChecklistItem { id: number; familyId: number; planId: number|null; planTaskId: number|null; title: string; completed: boolean; }

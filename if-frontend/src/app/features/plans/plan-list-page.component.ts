@@ -37,6 +37,9 @@ export class PlanListPageComponent implements OnInit, OnDestroy {
   get currentUserName(): string { return this.auth.user()?.fullName || 'Familia'; }
 
   plans: Plan[] = [];
+  /** ADR-010: declaración de intención (Fase 0b) */
+  planIntentionStatement = '';
+  acceptingPlan = false;
   planes: PlanTransformacion[] = [];
   evidences: any[] = [];
   loading = false;
@@ -1169,6 +1172,36 @@ export class PlanListPageComponent implements OnInit, OnDestroy {
       'tiempos': 'rgba(167, 139, 250, 0.1)'
     };
     return map[dim.toLowerCase()] || 'rgba(255,255,255,0.05)';
+  }
+
+  /** ADR-010: confirma el plan generado (Fase 0b) — la motivación es opcional, nunca bloquea. */
+  acceptPlan(): void {
+    if (!this.plans.length || this.acceptingPlan) return;
+    const planId = this.plans[0].id;
+    this.acceptingPlan = true;
+
+    const body = this.planIntentionStatement.trim()
+      ? { intentionStatement: this.planIntentionStatement.trim() }
+      : {};
+
+    this.http.put<any>(`${this.api.base}/plans/${planId}/accept`, body).subscribe({
+      next: ({ data }) => {
+        this.acceptingPlan = false;
+        if (this.plans.length) {
+          this.plans[0].acceptanceStatus = data?.acceptanceStatus ?? 'ACCEPTED';
+          this.plans[0].acceptedAt = data?.acceptedAt ?? null;
+          this.plans[0].acceptedBy = data?.acceptedBy ?? null;
+          this.plans[0].intentionStatement = data?.intentionStatement ?? null;
+        }
+        this.terminalLogs.push('✅ Plan aceptado. ¡Comienza la transformación!');
+        this.scrollToBottom();
+      },
+      error: (err) => {
+        this.acceptingPlan = false;
+        this.terminalLogs.push(`❌ No se pudo aceptar el plan: ${err.message || 'Error del servidor'}`);
+        this.scrollToBottom();
+      }
+    });
   }
 
   toggle(taskId: number, completed: boolean) {

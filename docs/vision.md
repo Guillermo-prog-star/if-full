@@ -155,6 +155,28 @@ Como todo lo que depende de `hypothesis_evidence`, este eje está sujeto a la Re
 
 ---
 
+## Arquitectura cognitiva (IF-CAM) — marco conceptual, sin instrumento nuevo
+
+Toda transformación familiar puede leerse como un ciclo de procesamiento de una experiencia: **Percibir → Atender → Interpretar → Relacionar → Imaginar → Evaluar → Decidir → Actuar → Reflexionar → Aprender → Transformación**. La pregunta que responde no es "¿qué siente una familia?" sino "¿cómo procesa una familia una experiencia, y cómo ese procesamiento cambia su forma de convivir?".
+
+Este ciclo (**IF-CAM**, Integrity Family – Cognitive Architecture Model) **no introduce fases ni columnas nuevas** — las 5 fases de `SCENARIO_V1_2` (`NOTICE/THINK/ACT/AFTERMATH/EFFECT`), congeladas por la [Directriz Operativa V1.2](Directriz_Operativa_Piloto_V1.2.md) mientras el piloto está en curso, ya cubren una versión más gruesa del mismo ciclo:
+
+| Fase actual (congelada) | Etapas cognitivas IF-CAM que ya cubre |
+|---|---|
+| `NOTICE` | Percibir + Atender |
+| `THINK` | Interpretar + Relacionar + Imaginar |
+| `ACT` | Evaluar + Decidir + Actuar |
+| `AFTERMATH` | Insumo crudo de Observar |
+| `EFFECT` | Reflexionar + Aprender |
+
+Un refinamiento a las 11 etapas explícitas queda pospuesto a una eventual V1.3 post-piloto — no se toca el instrumento congelado mientras haya familias reales evaluándose sobre él.
+
+Ocho dominios cognitivos (percepción, curiosidad, pensamiento crítico, flexibilidad cognitiva, creatividad, pensamiento analítico, pensamiento sistémico, autorregulación corporal), sintetizables en un dominio transversal **CCTF** (Competencias Cognitivas para la Transformación Familiar), quedan registrados como hipótesis candidata a `hypothesis_evidence` — mismo estado que hoy tiene la fila "Convivencia" de la tabla anterior: sin instrumento propio todavía, a la espera de evidencia real de que el proxy actual (`PROXY_PREDICTIVE_ACCURACY_HYPOTHESIS`, ADR-008) no explica ya las divergencias que se observarían.
+
+Ver [ADR-011](adr/ADR-011-if-cam-arquitectura-cognitiva-marco-conceptual.md) para la verificación completa contra el código y el razonamiento de por qué se integra como marco narrativo y no como cuestionarios independientes.
+
+---
+
 ## Usuarios objetivo
 
 - Familias nucleares con hijos (principal)

@@ -279,5 +279,45 @@ class SafetyProtocolServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no pertenece a esta trayectoria");
         }
+
+        @Test
+        @DisplayName("lanza excepción si no se indican notas de resolución (null)")
+        void throwsIfResolutionNotesMissing() {
+            Family family = aFamily(10L);
+            FamilyRiskTrajectory frt = aFamilyTrajectory(family);
+            FamilyMember responsible = aResponsible(5L, family);
+            SafetyProtocolActivation activation = SafetyProtocolActivation.builder()
+                .id(1L).familyTrajectory(frt).responsible(responsible)
+                .initialAction("Acción").followUpDate(LocalDate.now())
+                .closed(false).createdAt(LocalDateTime.now()).build();
+
+            when(repo.findById(1L)).thenReturn(Optional.of(activation));
+            CloseSafetyProtocolRequest req = new CloseSafetyProtocolRequest(null);
+
+            assertThatThrownBy(() -> service.close(100L, 1L, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("notas de resolución");
+            verify(repo, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("lanza excepción si las notas de resolución están en blanco")
+        void throwsIfResolutionNotesBlank() {
+            Family family = aFamily(10L);
+            FamilyRiskTrajectory frt = aFamilyTrajectory(family);
+            FamilyMember responsible = aResponsible(5L, family);
+            SafetyProtocolActivation activation = SafetyProtocolActivation.builder()
+                .id(1L).familyTrajectory(frt).responsible(responsible)
+                .initialAction("Acción").followUpDate(LocalDate.now())
+                .closed(false).createdAt(LocalDateTime.now()).build();
+
+            when(repo.findById(1L)).thenReturn(Optional.of(activation));
+            CloseSafetyProtocolRequest req = new CloseSafetyProtocolRequest("   ");
+
+            assertThatThrownBy(() -> service.close(100L, 1L, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("notas de resolución");
+            verify(repo, never()).save(any());
+        }
     }
 }

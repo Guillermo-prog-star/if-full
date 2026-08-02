@@ -86,6 +86,9 @@ public class SafetyProtocolService {
         if (!activation.getFamilyTrajectory().getId().equals(familyTrajectoryId)) {
             throw new IllegalArgumentException("La activación no pertenece a esta trayectoria");
         }
+        if (req.resolutionNotes() == null || req.resolutionNotes().isBlank()) {
+            throw new IllegalArgumentException("El cierre del protocolo de seguridad requiere notas de resolución");
+        }
 
         activation.setClosed(true);
         activation.setResolutionNotes(req.resolutionNotes());

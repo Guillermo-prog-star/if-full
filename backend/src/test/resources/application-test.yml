@@ -10,3 +10,8 @@ spring:
     show-sql: false
   flyway:
     enabled: false
+
+integrity:
+  security:
+    family-home:
+      id-secret: test-only-family-home-id-secret-not-for-production-use

@@ -119,7 +119,7 @@ public class TrajectoryController {
     }
 
     @PostMapping("/family/{id}/safety-protocol/{activationId}/close")
-    @PreAuthorize("@familySecurity.checkFamilyTrajectory(#id)")
+    @PreAuthorize("@familySecurity.canCloseSafetyProtocol(#id)")
     public ApiResponse<SafetyProtocolDto> closeSafetyProtocol(
             @PathVariable Long id,
             @PathVariable Long activationId,

@@ -10,6 +10,10 @@ import com.integrityfamily.domain.FamilyRiskTrajectory;
 import com.integrityfamily.domain.repository.FamilyRiskTrajectoryRepository;
 import com.integrityfamily.domain.RiskSnapshot;
 import com.integrityfamily.domain.repository.RiskSnapshotRepository;
+import com.integrityfamily.support.domain.AssignmentStatus;
+import com.integrityfamily.support.domain.SupportNetworkMember;
+import com.integrityfamily.support.repository.FamilySupportAssignmentRepository;
+import com.integrityfamily.support.repository.SupportNetworkMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,6 +36,8 @@ public class FamilySecurityEvaluator {
     private final EvaluationRepository evaluationRepository;
     private final RiskSnapshotRepository riskSnapshotRepository;
     private final FamilyRiskTrajectoryRepository familyRiskTrajectoryRepository;
+    private final SupportNetworkMemberRepository supportNetworkMemberRepository;
+    private final FamilySupportAssignmentRepository familySupportAssignmentRepository;
 
     /**
      * Valida si el usuario actualmente autenticado tiene permisos para interactuar con la familia dada.
@@ -198,5 +204,54 @@ public class FamilySecurityEvaluator {
             log.error("🚨 [SECURITY-BREACH-WARNING] El usuario {} intentó acceder a la trayectoria ID: {} de otra familia", email, familyTrajectoryId);
         }
         return authorized;
+    }
+
+    /**
+     * Autorización para cerrar un SafetyProtocolActivation (violencia intrafamiliar, ideación
+     * suicida, autolesiones — trayectorias con requires_safety_protocol=true). Pertenecer a la
+     * familia NO es suficiente: solo el Guardián Familiar (Family.guardianMemberId) o un
+     * profesional con FamilySupportAssignment en estado ACTIVE para esa familia pueden cerrar.
+     *
+     * Política mínima aceptada como transición (hallazgo de revisión de seguridad del PR), no el
+     * diseño final: reusa conceptos ya existentes (Guardián, asignación de apoyo profesional) en
+     * vez de introducir un modelo de capacidades/evidencia nuevo sin validar (ver docs/safety-gate/,
+     * serie conceptual IF-SG todavía sin implementar).
+     */
+    public boolean canCloseSafetyProtocol(Long familyTrajectoryId) {
+        if (familyTrajectoryId == null) return false;
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+
+        String email = auth.getName();
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) return false;
+
+        if (user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()))) return true;
+
+        FamilyRiskTrajectory frt = familyRiskTrajectoryRepository.findById(familyTrajectoryId).orElse(null);
+        if (frt == null) {
+            log.warn("⚠️ [SECURITY-DENIED] FamilyRiskTrajectory no encontrada con ID: {}", familyTrajectoryId);
+            return false;
+        }
+        Long familyId = frt.getFamily().getId();
+        Long guardianMemberId = frt.getFamily().getGuardianMemberId();
+
+        boolean isGuardian = guardianMemberId != null && memberRepository.findByEmail(email)
+                .filter(m -> m.getFamily() != null && m.getFamily().getId().equals(familyId))
+                .map(FamilyMember::getId)
+                .map(guardianMemberId::equals)
+                .orElse(false);
+        if (isGuardian) return true;
+
+        boolean isActiveProfessional = supportNetworkMemberRepository.findByEmail(email)
+                .map(SupportNetworkMember::getId)
+                .flatMap(supportMemberId -> familySupportAssignmentRepository.findByFamilyIdAndSupportMemberId(familyId, supportMemberId))
+                .filter(assignment -> assignment.getStatus() == AssignmentStatus.ACTIVE)
+                .isPresent();
+        if (isActiveProfessional) return true;
+
+        log.error("🚨 [SECURITY-BREACH-WARNING] El usuario {} intentó cerrar el protocolo de seguridad de la trayectoria {} sin ser Guardián ni profesional activo de la familia", email, familyTrajectoryId);
+        return false;
     }
 }

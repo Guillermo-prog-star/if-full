@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { interval, switchMap, catchError, of, lastValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from './auth.service';
+import { ApiService } from './api.service';
 
 @Injectable({ providedIn: 'root' })
 export class SentinelCoreService {
@@ -24,6 +25,7 @@ export class SentinelCoreService {
   );
 
   private auth = inject(AuthService);
+  private api = inject(ApiService);
 
   constructor(private http: HttpClient) {
     // Iniciar Vigilancia Automática solo si es admin
@@ -57,7 +59,7 @@ export class SentinelCoreService {
     interval(15000)
       .pipe(
         takeUntilDestroyed(),
-        switchMap(() => this.http.get<any>('/api/admin/analytics/alerts').pipe(
+        switchMap(() => this.http.get<any>(`${this.api.base}/admin/analytics/alerts`).pipe(
           catchError(() => of({ data: [] }))
         ))
       )
@@ -76,9 +78,9 @@ export class SentinelCoreService {
     this._loading.set(true);
     try {
       // Uso de lastValueFrom para cumplimiento de estandares RxJS modernos en promesas
-      const statsReq = lastValueFrom(this.http.get<any>('/api/admin/analytics/alpha-stats'));
-      const alertsReq = lastValueFrom(this.http.get<any>('/api/admin/analytics/alerts'));
-      const sentimentReq = lastValueFrom(this.http.get<any>('/api/admin/analytics/sentiment'));
+      const statsReq = lastValueFrom(this.http.get<any>(`${this.api.base}/admin/analytics/alpha-stats`));
+      const alertsReq = lastValueFrom(this.http.get<any>(`${this.api.base}/admin/analytics/alerts`));
+      const sentimentReq = lastValueFrom(this.http.get<any>(`${this.api.base}/admin/analytics/sentiment`));
 
       const [s, a, sen] = await Promise.all([statsReq, alertsReq, sentimentReq]);
 
@@ -105,7 +107,7 @@ export class SentinelCoreService {
    * Descarga el binario PDF generado por el motor de reportes de Integrity Family.
    */
   downloadExecutivePdf() {
-    this.http.get('/api/v1/reports/export/pdf', { responseType: 'blob' })
+    this.http.get(`${this.api.base}/v1/reports/export/pdf`, { responseType: 'blob' })
       .subscribe({
         next: (blob) => {
           const url = window.URL.createObjectURL(blob);
@@ -135,7 +137,7 @@ export class SentinelCoreService {
     this._alerts.update(current => [mockAlert, ...current]);
 
     // Llamar al backend para registrar la simulación
-    this.http.post('/api/simulation/trigger-crisis-test', {}).pipe(
+    this.http.post(`${this.api.base}/simulation/trigger-crisis-test`, {}).pipe(
       catchError(err => {
         console.warn('Crisis simulation backend call failed (non-critical):', err);
         return of(null);

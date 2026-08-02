@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { ApiService } from '../../core/services/api.service';
 
 type PageState = 'LOADING' | 'FORM' | 'SUCCESS' | 'INVALID_TOKEN' | 'ERROR';
 
@@ -240,6 +241,7 @@ export class ResetPasswordComponent implements OnInit {
 
   constructor(
     private http: HttpClient,
+    private api: ApiService,
     private route: ActivatedRoute,
     private router: Router
   ) {}
@@ -267,7 +269,7 @@ export class ResetPasswordComponent implements OnInit {
     this.loading = true;
     this.error   = '';
 
-    this.http.post('/api/auth/reset-password', {
+    this.http.post(`${this.api.base}/auth/reset-password`, {
       token: this.token,
       newPassword: this.newPassword
     }).subscribe({

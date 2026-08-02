@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
+import { ApiService } from '../../core/services/api.service';
 
 type PageState = 'FORM' | 'SENT' | 'ERROR';
 
@@ -167,14 +168,14 @@ export class ForgotPasswordComponent {
   error    = '';
   state: PageState = 'FORM';
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private api: ApiService) {}
 
   submit(): void {
     if (!this.email.trim()) return;
     this.loading = true;
     this.error   = '';
 
-    this.http.post('/api/auth/forgot-password', { email: this.email.trim() }).subscribe({
+    this.http.post(`${this.api.base}/auth/forgot-password`, { email: this.email.trim() }).subscribe({
       next: () => {
         this.loading = false;
         this.state   = 'SENT';

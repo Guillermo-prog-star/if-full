@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { interval, switchMap, catchError, of, startWith } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ApiService } from './api.service';
 
 export interface UserNotification {
   id: number;
@@ -15,6 +16,7 @@ export interface UserNotification {
 @Injectable({ providedIn: 'root' })
 export class UserNotificationService {
   private http = inject(HttpClient);
+  private api = inject(ApiService);
 
   private _notifications = signal<UserNotification[]>([]);
 
@@ -27,7 +29,7 @@ export class UserNotificationService {
         startWith(0),
         takeUntilDestroyed(),
         switchMap(() =>
-          this.http.get<any>('/api/notifications/mine').pipe(catchError(() => of(null)))
+          this.http.get<any>(`${this.api.base}/notifications/mine`).pipe(catchError(() => of(null)))
         )
       )
       .subscribe(res => {
@@ -36,7 +38,7 @@ export class UserNotificationService {
   }
 
   markAllRead(): void {
-    this.http.put('/api/notifications/mine/mark-all-read', {}).subscribe({
+    this.http.put(`${this.api.base}/notifications/mine/mark-all-read`, {}).subscribe({
       next: () => {
         this._notifications.update(list => list.map(n => ({ ...n, viewed: true })));
       }

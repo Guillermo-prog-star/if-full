@@ -23,7 +23,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 8 | 🟡 Medio | Arquitectura | Dos implementaciones paralelas de autorización por familia | Abierto |
 | 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Abierto |
 | 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | Abierto |
-| 11 | 🟡 Medio | Config | Ambigüedad sobre el backend de producción (Railway vs Render) | Abierto |
+| 11 | 🟠 Alto | Config | Backend de producción inconsistente y sin responder (Railway parkeado, Render 503) | Abierto |
 | 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | Abierto |
 
 Lo que está sano se documenta al final.
@@ -254,15 +254,31 @@ diverge según qué endpoint toque. Elegir uno y consolidar.
 
 ---
 
-## 🟡 11. Ambigüedad sobre el backend de producción
+## 🟠 11. Backend de producción — inconsistente y aparentemente caído
+
+Configuración contradictoria:
 
 - `if-frontend/src/environments/environment.prod.ts` apunta a `if-backend-v1-0-0.onrender.com`.
-- `deploy-backend.yml` despliega a Railway (`api.integrityfamily.online`).
+- `deploy-backend.yml` despliega a Railway; su paso de notificación cita `api.integrityfamily.online`.
+- `backend/Dockerfile` fija `ENV SPRING_PROFILES_ACTIVE=prod`; `backend/railway.toml` fuerza
+  `-Dspring.profiles.active=railway` en el `startCommand`. Dos perfiles distintos según qué
+  fichero de config lea Railway.
 - `application.yml` tiene perfiles `railway` **y** `render` coexistiendo.
 
-No queda claro cuál es el backend vivo. Esto determina qué perfil (y por tanto qué config de
-error/Swagger/`ddl-auto`) corre realmente en producción — es prerequisito para cerrar los
-hallazgos 5 y 6.
+Sondeo HTTP externo (2026-09-06):
+
+- `api.integrityfamily.online` → resuelve a `198.54.117.242` (IP de **parking de Namecheap**).
+  El dominio custom no apunta a Railway. El target de `deploy-backend.yml` está efectivamente
+  a oscuras.
+- `if-backend-v1-0-0.onrender.com` → **HTTP 503 en todas las rutas** (incluida `/`) de forma
+  sostenida >2 min. No es un cold-start transitorio; el servicio de Render parece suspendido o
+  en crash-loop.
+
+Implicación: **ningún backend de producción conocido responde.** No se pudo confirmar el perfil
+activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay que:
+1. Determinar cuál es el backend vivo real (¿una URL `*.up.railway.app`? ¿otro servicio Render?).
+2. Confirmar su `SPRING_PROFILES_ACTIVE`.
+3. Decidir Railway **o** Render como único destino y borrar la config del otro.
 
 ---
 

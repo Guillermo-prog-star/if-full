@@ -16,7 +16,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers + sub-recursos | **Cerrado** (`699d6f6` + 2º cambio) |
 | 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **En curso** (este cambio) |
 | 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | **Cerrado** (3er cambio; gate a 65%, real 68.9%) |
-| 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | Abierto |
+| 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | **Cerrado** (4º cambio) |
 | 5 | 🟠 Alto | Config | Fuga de mensajes de excepción y Swagger en perfiles `railway`/`render` | Abierto |
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
 | 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | Abierto |
@@ -24,7 +24,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Abierto |
 | 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | Abierto |
 | 11 | 🟠 Alto | Config | Backend de producción inconsistente y sin responder (Railway parkeado, Render 503) | Abierto |
-| 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | Abierto |
+| 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | **Cerrado** (4º cambio; workflows en 17) |
 
 Lo que está sano se documenta al final.
 
@@ -189,8 +189,13 @@ gate de Sonar no bloquea el merge. El gate real ahora es `jacoco:check`.
 No hay ejecución de tests, y el workflow no depende de `quality.yml`. `main` puede desplegarse a
 producción con la suite en rojo. La "verify" del nombre solo compila.
 
-**Recomendación:** `mvn verify` (sin `skip`) en el job `verify`, o condicionar `deploy` a que el
-run de `quality.yml` sobre el mismo SHA haya pasado.
+### Corrección aplicada (4º cambio)
+
+El job `verify` ahora corre `mvn -B verify -P ci --no-transfer-progress` (idéntico a `quality.yml`:
+suite completa + gate JaCoCo). `deploy` sigue con `needs: verify`, así que un test en rojo bloquea
+el despliegue. Coste: ~15-20 min extra por deploy — aceptable para esta plataforma. Redundante con
+`quality.yml` (ambos corren en push a `main`), pero hace `deploy-backend.yml` autosuficiente en vez
+de depender de una condición cruzada entre workflows.
 
 ---
 
@@ -309,8 +314,14 @@ activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay q
 ## 🟡 12. JDK 17 (CI) vs JDK 21 (deploy)
 
 `quality.yml` compila y testea con **JDK 17**; `deploy-backend.yml` compila con **JDK 21** sin
-`--release 17`. Se valida un bytecode distinto al que se despliega. Unificar en 17 (o subir
-`java.version` a 21 en `pom.xml` y en ambos workflows).
+`--release 17`. Se valida un bytecode distinto al que se despliega.
+
+### Corrección aplicada (4º cambio)
+
+`deploy-backend.yml` → `java-version: '17'`. Ambos workflows en 17, alineados con
+`<java.version>17</java.version>` de `pom.xml`. Nota: el `Dockerfile` de Railway usa
+`eclipse-temurin:21` (builder y runtime); el `pom` compila a bytecode 17, así que corre en 21 sin
+problema, pero conviene alinearlo a 17 también cuando se toque el Dockerfile.
 
 ---
 
@@ -344,11 +355,12 @@ activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay q
    estaba cubierto en el servicio. Pendiente menor: sacar `/api/v1/adaptive/*` de producción.
 4. Determinar el backend de prod vivo y su `SPRING_PROFILES_ACTIVE` (hallazgo 11); luego
    aplicarle `include-message: never`, Swagger off, `ddl-auto: validate` (hallazgos 5 y 6).
-5. **[hecho en el 3er cambio]** Gate de JaCoCo real (`jacoco:check` a 65%). Pendiente: quitar
-   `-Dmaven.test.skip=true` del deploy (hallazgo 4).
-6. Borrar `JwtService` y `security.SecurityConfig`; evaluar apagar
+5. **[hecho en el 3er cambio]** Gate de JaCoCo real (`jacoco:check` a 65%).
+6. **[hecho en el 4º cambio]** `deploy-backend.yml` corre `mvn verify -P ci` (hallazgo 4);
+   ambos workflows en JDK 17 (hallazgo 12).
+7. Borrar `JwtService` y `security.SecurityConfig`; evaluar apagar
    `allow-bean-definition-overriding` (hallazgo 7).
-7. Consolidar `SecurityValidator` y `FamilySecurityEvaluator` en una sola implementación
+8. Consolidar `SecurityValidator` y `FamilySecurityEvaluator` en una sola implementación
    (hallazgo 8).
-8. Sincronizar `CLAUDE.md` (hallazgo 10); unificar JDK (hallazgo 12); mover `@Transactional`
-   fuera de los controllers (hallazgo 9).
+9. Sincronizar `CLAUDE.md` (hallazgo 10); mover `@Transactional` fuera de los controllers
+   (hallazgo 9).

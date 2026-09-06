@@ -10,6 +10,10 @@ import com.integrityfamily.domain.FamilyRiskTrajectory;
 import com.integrityfamily.domain.repository.FamilyRiskTrajectoryRepository;
 import com.integrityfamily.domain.RiskSnapshot;
 import com.integrityfamily.domain.repository.RiskSnapshotRepository;
+import com.integrityfamily.errorprotocol.domain.FamilyErrorProtocol;
+import com.integrityfamily.errorprotocol.repository.ErrorProtocolRepository;
+import com.integrityfamily.adaptive.AdaptiveAdjustmentEntity;
+import com.integrityfamily.adaptive.AdaptiveAdjustmentRepository;
 import com.integrityfamily.support.domain.AssignmentStatus;
 import com.integrityfamily.support.domain.SupportNetworkMember;
 import com.integrityfamily.support.repository.FamilySupportAssignmentRepository;
@@ -19,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * SDD: Evaluador de Seguridad Multitenancy Familiar.
@@ -38,6 +44,8 @@ public class FamilySecurityEvaluator {
     private final FamilyRiskTrajectoryRepository familyRiskTrajectoryRepository;
     private final SupportNetworkMemberRepository supportNetworkMemberRepository;
     private final FamilySupportAssignmentRepository familySupportAssignmentRepository;
+    private final ErrorProtocolRepository errorProtocolRepository;
+    private final AdaptiveAdjustmentRepository adaptiveAdjustmentRepository;
 
     /**
      * Valida si el usuario actualmente autenticado tiene permisos para interactuar con la familia dada.
@@ -202,6 +210,70 @@ public class FamilySecurityEvaluator {
         boolean authorized = user.getFamily() != null && user.getFamily().getId().equals(frt.getFamily().getId());
         if (!authorized) {
             log.error("🚨 [SECURITY-BREACH-WARNING] El usuario {} intentó acceder a la trayectoria ID: {} de otra familia", email, familyTrajectoryId);
+        }
+        return authorized;
+    }
+
+    /**
+     * Valida que el protocolo de error dado pertenezca a la familia del usuario autenticado.
+     * Cierra el riesgo residual del hallazgo 1 (docs/auditoria-2026-09.md): ErrorProtocolController
+     * update/close reciben solo {id} y ErrorProtocolService no verifica la pertenencia a familyId.
+     */
+    public boolean checkErrorProtocol(Long errorProtocolId) {
+        if (errorProtocolId == null) return false;
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+
+        String email = auth.getName();
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) return false;
+
+        if (user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()))) {
+            return true;
+        }
+
+        FamilyErrorProtocol protocol = errorProtocolRepository.findById(errorProtocolId).orElse(null);
+        if (protocol == null) {
+            log.warn("⚠️ [SECURITY-DENIED] Protocolo de error no encontrado con ID: {}", errorProtocolId);
+            return false;
+        }
+
+        boolean authorized = user.getFamily() != null && user.getFamily().getId().equals(protocol.getFamilyId());
+        if (!authorized) {
+            log.error("🚨 [SECURITY-BREACH-WARNING] El usuario {} intentó acceder al protocolo de error ID: {} de otra familia", email, errorProtocolId);
+        }
+        return authorized;
+    }
+
+    /**
+     * Valida que el ajuste adaptativo dado pertenezca a la familia del usuario autenticado.
+     * Los endpoints /adaptive-adjustments/{adjustmentId}/{approve,apply,reject} se indexan solo
+     * por el UUID del ajuste (hallazgo 1, riesgo residual).
+     */
+    public boolean checkAdjustment(UUID adjustmentId) {
+        if (adjustmentId == null) return false;
+
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return false;
+
+        String email = auth.getName();
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) return false;
+
+        if (user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()))) {
+            return true;
+        }
+
+        AdaptiveAdjustmentEntity adjustment = adaptiveAdjustmentRepository.findById(adjustmentId).orElse(null);
+        if (adjustment == null) {
+            log.warn("⚠️ [SECURITY-DENIED] Ajuste adaptativo no encontrado con ID: {}", adjustmentId);
+            return false;
+        }
+
+        boolean authorized = user.getFamily() != null && user.getFamily().getId().equals(adjustment.getFamilyId());
+        if (!authorized) {
+            log.error("🚨 [SECURITY-BREACH-WARNING] El usuario {} intentó acceder al ajuste adaptativo ID: {} de otra familia", email, adjustmentId);
         }
         return authorized;
     }

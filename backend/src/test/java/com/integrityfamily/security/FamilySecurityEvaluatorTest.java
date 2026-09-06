@@ -1,7 +1,11 @@
 package com.integrityfamily.security;
 
+import com.integrityfamily.adaptive.AdaptiveAdjustmentEntity;
+import com.integrityfamily.adaptive.AdaptiveAdjustmentRepository;
 import com.integrityfamily.domain.*;
 import com.integrityfamily.domain.repository.*;
+import com.integrityfamily.errorprotocol.domain.FamilyErrorProtocol;
+import com.integrityfamily.errorprotocol.repository.ErrorProtocolRepository;
 import com.integrityfamily.support.domain.AssignmentStatus;
 import com.integrityfamily.support.domain.FamilySupportAssignment;
 import com.integrityfamily.support.domain.SupportNetworkMember;
@@ -21,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
@@ -37,6 +42,8 @@ class FamilySecurityEvaluatorTest {
     @Mock FamilyRiskTrajectoryRepository familyRiskTrajectoryRepository;
     @Mock SupportNetworkMemberRepository supportNetworkMemberRepository;
     @Mock FamilySupportAssignmentRepository familySupportAssignmentRepository;
+    @Mock ErrorProtocolRepository errorProtocolRepository;
+    @Mock AdaptiveAdjustmentRepository adaptiveAdjustmentRepository;
 
     @InjectMocks FamilySecurityEvaluator evaluator;
 
@@ -192,6 +199,148 @@ class FamilySecurityEvaluatorTest {
             when(familyRiskTrajectoryRepository.findById(FAMILY_TRAJECTORY_ID)).thenReturn(Optional.empty());
 
             assertThat(evaluator.canCloseSafetyProtocol(FAMILY_TRAJECTORY_ID)).isFalse();
+        }
+    }
+
+    private User aMemberUser(String email) {
+        User u = aUser(email);
+        Family f = new Family();
+        f.setId(FAMILY_ID);
+        u.setFamily(f);
+        return u;
+    }
+
+    @Nested
+    @DisplayName("checkErrorProtocol()")
+    class CheckErrorProtocol {
+
+        private static final Long PROTOCOL_ID = 55L;
+
+        private FamilyErrorProtocol aProtocol(Long familyId) {
+            return FamilyErrorProtocol.builder().id(PROTOCOL_ID).familyId(familyId).build();
+        }
+
+        @Test
+        @DisplayName("false si el id es null")
+        void falseIfIdNull() {
+            authenticateAs("m@test.com");
+            assertThat(evaluator.checkErrorProtocol(null)).isFalse();
+        }
+
+        @Test
+        @DisplayName("false si no hay autenticación")
+        void falseIfNotAuthenticated() {
+            assertThat(evaluator.checkErrorProtocol(PROTOCOL_ID)).isFalse();
+        }
+
+        @Test
+        @DisplayName("true para ROLE_ADMIN sin cargar el protocolo")
+        void trueForAdmin() {
+            authenticateAs("admin@test.com");
+            when(userRepository.findByEmailIgnoreCase("admin@test.com"))
+                    .thenReturn(Optional.of(aUser("admin@test.com", "ROLE_ADMIN")));
+
+            assertThat(evaluator.checkErrorProtocol(PROTOCOL_ID)).isTrue();
+        }
+
+        @Test
+        @DisplayName("true si el protocolo pertenece a la familia del usuario")
+        void trueIfSameFamily() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(errorProtocolRepository.findById(PROTOCOL_ID)).thenReturn(Optional.of(aProtocol(FAMILY_ID)));
+
+            assertThat(evaluator.checkErrorProtocol(PROTOCOL_ID)).isTrue();
+        }
+
+        @Test
+        @DisplayName("false si el protocolo es de otra familia")
+        void falseIfOtherFamily() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(errorProtocolRepository.findById(PROTOCOL_ID)).thenReturn(Optional.of(aProtocol(999L)));
+
+            assertThat(evaluator.checkErrorProtocol(PROTOCOL_ID)).isFalse();
+        }
+
+        @Test
+        @DisplayName("false si el protocolo no existe")
+        void falseIfNotFound() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(errorProtocolRepository.findById(PROTOCOL_ID)).thenReturn(Optional.empty());
+
+            assertThat(evaluator.checkErrorProtocol(PROTOCOL_ID)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("checkAdjustment()")
+    class CheckAdjustment {
+
+        private final UUID adjustmentId = UUID.randomUUID();
+
+        private AdaptiveAdjustmentEntity anAdjustment(Long familyId) {
+            return AdaptiveAdjustmentEntity.builder().id(adjustmentId).familyId(familyId).build();
+        }
+
+        @Test
+        @DisplayName("false si el id es null")
+        void falseIfIdNull() {
+            authenticateAs("m@test.com");
+            assertThat(evaluator.checkAdjustment(null)).isFalse();
+        }
+
+        @Test
+        @DisplayName("false si no hay autenticación")
+        void falseIfNotAuthenticated() {
+            assertThat(evaluator.checkAdjustment(adjustmentId)).isFalse();
+        }
+
+        @Test
+        @DisplayName("true para ROLE_ADMIN sin cargar el ajuste")
+        void trueForAdmin() {
+            authenticateAs("admin@test.com");
+            when(userRepository.findByEmailIgnoreCase("admin@test.com"))
+                    .thenReturn(Optional.of(aUser("admin@test.com", "ROLE_ADMIN")));
+
+            assertThat(evaluator.checkAdjustment(adjustmentId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("true si el ajuste pertenece a la familia del usuario")
+        void trueIfSameFamily() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(adaptiveAdjustmentRepository.findById(adjustmentId)).thenReturn(Optional.of(anAdjustment(FAMILY_ID)));
+
+            assertThat(evaluator.checkAdjustment(adjustmentId)).isTrue();
+        }
+
+        @Test
+        @DisplayName("false si el ajuste es de otra familia")
+        void falseIfOtherFamily() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(adaptiveAdjustmentRepository.findById(adjustmentId)).thenReturn(Optional.of(anAdjustment(999L)));
+
+            assertThat(evaluator.checkAdjustment(adjustmentId)).isFalse();
+        }
+
+        @Test
+        @DisplayName("false si el ajuste no existe")
+        void falseIfNotFound() {
+            authenticateAs("m@test.com");
+            when(userRepository.findByEmailIgnoreCase("m@test.com"))
+                    .thenReturn(Optional.of(aMemberUser("m@test.com")));
+            when(adaptiveAdjustmentRepository.findById(adjustmentId)).thenReturn(Optional.empty());
+
+            assertThat(evaluator.checkAdjustment(adjustmentId)).isFalse();
         }
     }
 }

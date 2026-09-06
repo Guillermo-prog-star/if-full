@@ -13,7 +13,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 
 | # | Severidad | Área | Hallazgo | Estado |
 |---|---|---|---|---|
-| 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers | **En curso** (este cambio) |
+| 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers + sub-recursos | **Cerrado** (`699d6f6` + 2º cambio) |
 | 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **En curso** (este cambio) |
 | 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | Abierto |
 | 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | Abierto |
@@ -78,19 +78,31 @@ Se añade `@PreAuthorize("@familySecurity.check(#familyId)")` (o `#id` según el
 var) a cada método de los 9 controllers, siguiendo el patrón por método ya usado en
 `ConsentController`, `IcafController`, `CognitiveController`, etc.
 
-### Riesgo residual (follow-up, no cubierto por este cambio)
+### Riesgo residual de sub-recursos — **cerrado** (2º cambio)
 
-- **`ErrorProtocolController.update/close`** y **`GuardianController.completeMission`** reciben un
-  `{id}`/`{missionId}` y lo pasan al servicio **sin verificar que ese recurso pertenezca a
-  `familyId`**. `@familySecurity.check(#familyId)` cierra el acceso a la familia, pero un miembro
-  legítimo de la familia A podría pasar el `id` de un recurso de la familia B. Hace falta un
-  `checkErrorProtocol(id)` / validar `protocol.familyId == familyId` en el servicio.
-- **`AdaptiveController`**: los endpoints `/adaptive-adjustments/{adjustmentId}/{approve,apply,reject}`
-  se indexan por `adjustmentId` (UUID) y no tienen overload en `FamilySecurityEvaluator`. Quedan
-  solo con `authenticated()`. Falta `checkAdjustment(UUID)`.
-- **`AdaptiveController`**: los endpoints `/api/v1/adaptive/{evaluate,approve,apply}` ("compatibilidad
-  para QA de contrato en memoria") no deberían estar expuestos en producción. Evaluar moverlos a
-  perfil `test` o eliminarlos.
+`@familySecurity.check(#familyId)` cierra el acceso a la familia, pero un miembro legítimo de la
+familia A podía pasar el `{id}` de un sub-recurso de la familia B. Estado:
+
+- **`ErrorProtocolController.update/close`** — ✅ cerrado. Nuevo `FamilySecurityEvaluator.checkErrorProtocol(Long)`
+  (resuelve `protocol.familyId` y valida pertenencia); anotación pasa a
+  `@PreAuthorize("@familySecurity.check(#familyId) and @familySecurity.checkErrorProtocol(#id)")`.
+- **`AdaptiveController` `/adaptive-adjustments/{adjustmentId}/{approve,apply,reject}`** — ✅ cerrado.
+  Nuevo `FamilySecurityEvaluator.checkAdjustment(UUID)`; los 3 endpoints anotados con
+  `@PreAuthorize("@familySecurity.checkAdjustment(#adjustmentId)")` (antes: solo `authenticated()`).
+- **`GuardianController`** — no requería cambios: `GuardianService` ya valida cada sub-recurso
+  contra `familyId` (`completeMission` línea 170 `mission.getFamily().getId().equals(familyId)`;
+  `getMember(memberId, familyId)` línea 220; `generateReengagementMessage` filtra el miembro por
+  la familia). El `@familySecurity.check(#familyId)` del 1er cambio es suficiente.
+
+Cobertura: `FamilySecurityEvaluatorTest` +12 casos (`CheckErrorProtocol`, `CheckAdjustment`:
+null / sin auth / admin / misma familia / otra familia / no existe).
+
+### Riesgo residual pendiente
+
+- **`AdaptiveController` `/api/v1/adaptive/{evaluate,approve,apply}`** ("compatibilidad para QA de
+  contrato en memoria") no deberían estar expuestos en producción. Operan sobre el `@RequestBody`
+  sin persistencia ni contexto de familia; quedan con `authenticated()`. Evaluar moverlos a
+  perfil `test` o eliminarlos (los cubre `AdaptiveControllerTest`).
 
 ---
 
@@ -314,11 +326,12 @@ activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay q
    antes de mergear.**
 2. **[hecho en este cambio]** `@PreAuthorize("@familySecurity.check(...)")` en los 9 controllers
    sin protección.
-3. Follow-up del hallazgo 1: validar pertenencia de sub-recursos (`errorProtocolId`,
-   `missionId`, `adjustmentId`) a `familyId` en la capa de servicio; añadir overloads a
-   `FamilySecurityEvaluator`.
-4. Alinear el perfil de producción (hallazgo 11) y aplicarle `include-message: never`, Swagger
-   off, `ddl-auto: validate` (hallazgos 5 y 6).
+3. **[hecho en el 2º cambio]** Pertenencia de sub-recursos a `familyId`:
+   `checkErrorProtocol(Long)` + `checkAdjustment(UUID)` en `FamilySecurityEvaluator`, anotados en
+   `ErrorProtocolController.update/close` y `AdaptiveController` approve/apply/reject. Guardian ya
+   estaba cubierto en el servicio. Pendiente menor: sacar `/api/v1/adaptive/*` de producción.
+4. Determinar el backend de prod vivo y su `SPRING_PROFILES_ACTIVE` (hallazgo 11); luego
+   aplicarle `include-message: never`, Swagger off, `ddl-auto: validate` (hallazgos 5 y 6).
 5. Arreglar o retirar el gate de JaCoCo (hallazgo 3); quitar `-Dmaven.test.skip=true` del deploy
    (hallazgo 4).
 6. Borrar `JwtService` y `security.SecurityConfig`; evaluar apagar

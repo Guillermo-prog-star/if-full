@@ -36,6 +36,7 @@ public class AdaptiveController {
         return ApiResponse.ok(adaptivePlanService.evaluateAndProposeForFamily(familyId));
     }
 
+    @PreAuthorize("@familySecurity.checkAdjustment(#adjustmentId)")
     @PostMapping("/adaptive-adjustments/{adjustmentId}/approve")
     @Operation(summary = "Aprobar ajuste propuesto", description = "Pasa un ajuste de PROPOSED a APPROVED, registrando la auditoría en la Bitácora.")
     public ApiResponse<AdaptiveAdjustmentEntity> approveAdjustment(
@@ -44,6 +45,7 @@ public class AdaptiveController {
         return ApiResponse.ok(adaptivePlanService.approveAdjustment(adjustmentId, approvedBy));
     }
 
+    @PreAuthorize("@familySecurity.checkAdjustment(#adjustmentId)")
     @PostMapping("/adaptive-adjustments/{adjustmentId}/apply")
     @Operation(summary = "Aplicar mutaciones de ajuste", description = "Ejecuta las mutaciones específicas sobre PlanTask (espaciamiento, misiones introductorias o de escucha) y deja entrada automática en Bitácora.")
     public ApiResponse<AdaptiveAdjustmentEntity> applyAdjustment(
@@ -51,6 +53,7 @@ public class AdaptiveController {
         return ApiResponse.ok(adaptivePlanService.applyAdjustment(adjustmentId));
     }
 
+    @PreAuthorize("@familySecurity.checkAdjustment(#adjustmentId)")
     @PostMapping("/adaptive-adjustments/{adjustmentId}/reject")
     @Operation(summary = "Rechazar ajuste propuesto", description = "Marca el ajuste como REJECTED sin aplicar cambios al plan.")
     public ApiResponse<AdaptiveAdjustmentEntity> rejectAdjustment(

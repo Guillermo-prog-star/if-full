@@ -19,10 +19,9 @@ import java.util.Map;
  * PATCH  /api/families/{familyId}/error-protocols/{id}   → actualizar paso
  * POST   /api/families/{familyId}/error-protocols/{id}/close → cerrar con aprendizaje
  *
- * NOTA: {@code update} y {@code close} reciben {@code id} y lo pasan al servicio sin
- * verificar que el protocolo pertenezca a {@code familyId}. {@code @familySecurity.check}
- * cierra el acceso cruzado entre familias; falta validar la pertenencia del sub-recurso
- * en la capa de servicio (ver docs/auditoria-2026-09.md, hallazgo 1, riesgo residual).
+ * {@code update} y {@code close} añaden {@code @familySecurity.checkErrorProtocol(#id)} para
+ * verificar que el protocolo pertenezca a la familia del usuario (docs/auditoria-2026-09.md,
+ * hallazgo 1) — el servicio recibe solo {@code id}.
  */
 @RestController
 @RequestMapping("/api/families/{familyId}/error-protocols")
@@ -51,7 +50,7 @@ public class ErrorProtocolController {
         return ResponseEntity.ok(service.create(familyId, body.getOrDefault("missionFailed", "")));
     }
 
-    @PreAuthorize("@familySecurity.check(#familyId)")
+    @PreAuthorize("@familySecurity.check(#familyId) and @familySecurity.checkErrorProtocol(#id)")
     @PatchMapping("/{id}")
     public ResponseEntity<FamilyErrorProtocol> update(
             @PathVariable Long familyId,
@@ -60,7 +59,7 @@ public class ErrorProtocolController {
         return ResponseEntity.ok(service.update(id, fields));
     }
 
-    @PreAuthorize("@familySecurity.check(#familyId)")
+    @PreAuthorize("@familySecurity.check(#familyId) and @familySecurity.checkErrorProtocol(#id)")
     @PostMapping("/{id}/close")
     public ResponseEntity<FamilyErrorProtocol> close(
             @PathVariable Long familyId,

@@ -14,7 +14,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | # | Severidad | Área | Hallazgo | Estado |
 |---|---|---|---|---|
 | 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers + sub-recursos | **Cerrado** (`699d6f6` + 2º cambio) |
-| 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **Código cerrado** (`699d6f6`); var añadida a Railway 2026-09-06 — falta el Redeploy para que la tome |
+| 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **Cerrado** — código (`699d6f6`) + var en Railway + Redeploy del `v1.1.9` OK (2026-09-06, deployment successful). Prod ya no firma con el secreto público. |
 | 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | **Cerrado** (3er cambio; gate a 65%, real 68.9%) |
 | 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | **Cerrado** (4º cambio) — sin efecto hasta reconectar Railway al repo (hallazgo 11) |
 | 5 | 🟠 Alto | Config | Fuga de mensajes de excepción y Swagger en perfiles `railway`/`render` | Abierto |
@@ -137,12 +137,18 @@ principal, que es más sensible.
 - `.env.example`: `JWT_SECRET` con un valor de **desarrollo** claramente etiquetado, para que el
   arranque local siga funcionando sin fricción.
 
-### Acción requerida fuera del código (bloqueante para merge/deploy)
+### Estado operacional (2026-09-06)
 
-**Verificar que `JWT_SECRET` esté configurado como variable de entorno en Railway y/o Render
-antes de desplegar este cambio.** Sin el default, un entorno sin la variable no arrancará.
-Al rotar el secreto, todos los tokens vigentes quedan invalidados (los usuarios deben volver a
-iniciar sesión) — comportamiento esperado.
+- `JWT_SECRET` (valor aleatorio de 64 chars) añadido a las variables del servicio Railway
+  `if-backend` / `production`.
+- **Redeploy del `v1.1.9`** ejecutado → deployment ACTIVE / successful. La imagen de julio usa
+  `${JWT_SECRET:default}`; al existir ahora la variable, el env-var gana → **prod ya no firma
+  con el secreto público de git**. Los tokens previos quedaron invalidados (re-login esperado).
+- Pendiente de confirmación end-to-end: un ciclo login→request en la app (el "deployment
+  successful" solo prueba el arranque).
+- Cuando el pipeline se reconecte al repo (hallazgo 11), el código nuevo ya no trae default:
+  cualquier entorno sin `JWT_SECRET` fallará fuerte al arrancar. `application-test.yml` y
+  `application-integration-test.properties` traen su propia clave → CI no necesita secret de GH.
 
 ---
 

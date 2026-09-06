@@ -177,6 +177,26 @@ Ver [ADR-011](adr/ADR-011-if-cam-arquitectura-cognitiva-marco-conceptual.md) par
 
 ---
 
+## Principio de Altura de Observación — perspectiva multiescala sobre la experiencia familiar
+
+Inspirado en un principio epistemológico, no estético: el documentalista Chi Po-lin (*Beyond Beauty: Taiwan from Above*) mostró que un mismo territorio revela cosas distintas según la altura desde la que se observa — no porque el territorio cambie, sino porque la proximidad oculta lo que la distancia revela, y viceversa. Trasladado a Integrity Family: **un acontecimiento familiar cambia de significado cuando cambia la escala desde la cual se observa**, y ningún evento relevante debería interpretarse desde una sola altura.
+
+Esto no es una capa nueva de arquitectura ni un módulo aislado — es, igual que "El eje de regulación" e IF-CAM (arriba), una forma de leer en conjunto módulos que ya existen, y en un solo caso, señalar uno que todavía falta construir:
+
+| Altura | Pregunta | Dónde vive |
+|---|---|---|
+| **H1 — Experiencia** | ¿Qué estoy viviendo ahora? | `JournalEntry`, `CriticalDay`, módulos `myspace`/`chat`/`cognitive` |
+| **H2 — Perspectivas** | ¿Cómo vivimos el mismo acontecimiento, cada quien? | `JournalEntry.member` + `visibility` + `perceived_event_key` (V112) — mecanismo de captura descrito en [ADR-012](adr/ADR-012-perspectivas-multiples-mismo-evento.md) (`Accepted`) |
+| **H3 — Patrón** | ¿Esto ya nos ha ocurrido antes? | `FamilyCausalEngine` (umbrales de deterioro/mejora sobre `dimScore`) cubre el patrón numérico; el patrón narrativo (situación→interpretación→emoción→reacción→consecuencia) queda sin instrumentar |
+| **H4 — Trayectoria** | ¿Hacia dónde estamos yendo? | `LongitudinalStateService` + `hypothesis_evidence` (ver "El eje de regulación", arriba) |
+| **H5 — Legado** | ¿Qué estamos dejando como forma de vivir juntos? | módulos `legado`, `lineage`, `dna`, `documentary`, `movie` |
+
+De las cinco alturas, cuatro (H1, H3 parcial, H4, H5) ya tenían mecanismo operacional — no ameritan infraestructura nueva, solo esta lectura conjunta. **H2 era la única con un hueco de captura verificado contra el código real**: `JournalEntry` no tenía autor y `CriticalDay` no tenía forma de vincular dos relatos del mismo incidente — ver la verificación completa en [ADR-012](adr/ADR-012-perspectivas-multiples-mismo-evento.md), cerrado por V112.
+
+H2 opera bajo la misma restricción ética que gobierna el resto del sistema: hacer visible lo que normalmente permanece invisible **sin apropiarse de la voz de las personas**. Por eso ADR-012 fija visibilidad privada por defecto — ninguna perspectiva se expone a otro miembro de la familia salvo que su propio autor la comparta explícitamente. Esto conecta directamente con el **CCSF** (arriba): H2 es, en términos operacionales, el instante anterior a que "las experiencias individuales dejen de ser interpretaciones aisladas" — hoy el sistema no tiene dónde guardar la interpretación aislada de cada quien antes de que se convierta en comprensión colectiva.
+
+---
+
 ## Usuarios objetivo
 
 - Familias nucleares con hijos (principal)

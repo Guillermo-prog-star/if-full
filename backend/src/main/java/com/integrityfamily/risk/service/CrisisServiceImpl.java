@@ -150,9 +150,9 @@ public class CrisisServiceImpl implements CrisisService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CriticalDay> getHistory(Long familyId) {
+    public List<CriticalDay> getHistory(Long familyId, Long viewerMemberId) {
         log.info("📊 [CRISIS-HIST] Recuperando historial para familia {}", familyId);
-        return repository.findByFamilyIdOrderByCreatedAtDesc(familyId);
+        return repository.findVisibleToMember(familyId, viewerMemberId);
     }
 
     @Override

@@ -43,6 +43,7 @@ public class FamilyMember {
     private String email;
 
     @Column
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
 
     private String phone;

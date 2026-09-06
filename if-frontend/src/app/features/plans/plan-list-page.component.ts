@@ -888,10 +888,12 @@ export class PlanListPageComponent implements OnInit, OnDestroy {
                   mision.estado = matchedTask.completed ? 'Completada' : 'En_Progreso';
                   mision.titulo = matchedTask.title;
                   mision.descripcionGeneral = matchedTask.description;
-                  
+                  mision.responsibleName = matchedTask.assignedMemberName ?? undefined;
+                  mision.memberType = matchedTask.memberType;
+
                   // Si el backend tiene paso a paso explícito en 'accion_concreta' o similar, podríamos mapearlo aquí,
                   // pero por ahora mantenemos el paso a paso del mock o de la propuesta.
-                  
+
                   mappedTaskIds.add(matchedTask.id);
                 } else {
                   mision.backendTaskId = undefined;
@@ -899,9 +901,27 @@ export class PlanListPageComponent implements OnInit, OnDestroy {
                 }
               });
 
-              // 2. El mock es la fuente de verdad (3 misiones fijas: IA-1, IA-2, CREATIVA).
-              // No se inyectan tareas del backend — el paso 1 ya sincronizó los estados de completado.
-              
+              // 2. Misiones individuales diferenciadas por rol (PlanTaskService.generateTasksFromDiagnosis)
+              // no coinciden por título con el mock de 3 misiones fijas -- se agregan como misiones
+              // adicionales de este pilar en vez de descartarse, para que el responsable sea visible.
+              const dimNorm = (plan.pilar || '').toUpperCase().trim();
+              matchedTasks
+                .filter((t: any) => !mappedTaskIds.has(t.id) && (t.dimension || '').toUpperCase().trim() === dimNorm)
+                .forEach((t: any) => {
+                  plan.misiones.push({
+                    id: `backend-task-${t.id}`,
+                    titulo: t.title,
+                    estado: t.completed ? 'Completada' : 'En_Progreso',
+                    descripcionGeneral: t.description || '',
+                    microacciones: [],
+                    backendTaskId: t.id,
+                    isAi: true,
+                    responsibleName: t.assignedMemberName ?? undefined,
+                    memberType: t.memberType
+                  });
+                  mappedTaskIds.add(t.id);
+                });
+
               // 3. Calcular progreso dinámico del pilar real basado en las misiones mapeadas de este plan
               const completedTasks = plan.misiones.filter(m => m.estado === 'Completada').length;
               plan.misionesLogradas = completedTasks;

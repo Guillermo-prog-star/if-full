@@ -183,7 +183,7 @@ class NombreServicioTest {
 # Desde /backend
 mvn test                          # todos los tests
 mvn test -Dtest=SprintServiceTest # test específico
-mvn verify -P ci                  # tests + JaCoCo quality gate (igual que CI)
+mvn verify -P ci                  # tests + JaCoCo quality gate (igual que CI); rompe si cobertura de líneas < 65%
 
 # Test de integración E2E (requiere Docker integrity-db en puerto 3307)
 mvn test -Dtest=FamilyLifecycleIntegrationTest
@@ -242,7 +242,7 @@ docker compose up -d db rabbitmq
 
 | Evento | Workflow | Qué hace |
 |---|---|---|
-| Push/PR → `main` o `principal` con cambios en `backend/` | `quality.yml` | Tests + JaCoCo (umbral 40% líneas) + SonarCloud |
+| Push/PR → `main` o `principal` con cambios en `backend/` | `quality.yml` | Tests + JaCoCo (umbral **65% líneas**, `jacoco:check` con `haltOnFailure`; ver `<jacoco.line.coverage.min>` en `pom.xml`) + SonarCloud |
 | Push → `main` con cambios en `backend/` | `deploy-backend.yml` | Deploy a Railway |
 | Push → `main` con cambios en `if-frontend/` | `deploy-frontend.yml` | Deploy a Vercel |
 

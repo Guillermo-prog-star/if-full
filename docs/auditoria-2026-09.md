@@ -15,7 +15,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 |---|---|---|---|---|
 | 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers + sub-recursos | **Cerrado** (`699d6f6` + 2º cambio) |
 | 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **En curso** (este cambio) |
-| 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | Abierto |
+| 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | **Cerrado** (3er cambio; gate a 65%, real 68.9%) |
 | 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | Abierto |
 | 5 | 🟠 Alto | Config | Fuga de mensajes de excepción y Swagger en perfiles `railway`/`render` | Abierto |
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
@@ -160,8 +160,20 @@ Consecuencias:
 - El único gate efectivo en `main`/`principal` es "los tests compilan y pasan" (`mvn verify`
   ejecuta Surefire aunque el resto falte).
 
-**Recomendación:** o se agrega el plugin JaCoCo + profile `ci` con `haltOnFailure` real al
-`pom.xml`, o se elimina de `CLAUDE.md` la afirmación de que existe el gate.
+### Corrección aplicada (3er cambio)
+
+- `backend/pom.xml`: añadido `jacoco-maven-plugin` 0.8.12.
+  - Siempre: `prepare-agent` + `report` (`verify`) → emite `target/site/jacoco/jacoco.xml`, que es
+    justo lo que `quality.yml` pasa a SonarCloud (`-Dsonar.coverage.jacoco.xmlReportPaths`).
+  - Profile `ci` (lo que invoca `quality.yml`): `jacoco:check` con `haltOnFailure=true` sobre
+    `BUNDLE` / `LINE` / `COVEREDRATIO`.
+- Umbral parametrizado en `<jacoco.line.coverage.min>` (property). **Cobertura real medida:
+  68.9% líneas** (INSTRUCTION 67.6%, BRANCH 51.9%). El gate se fijó en **0.65** (~4 pt de
+  holgura) en vez del 40% documentado, que con la cobertura actual no protegía nada.
+- `CLAUDE.md` actualizado (líneas del comando de test y tabla de CI) al valor real.
+
+Pendiente (no bloqueante): el step de SonarCloud sigue con `continue-on-error: true` → el quality
+gate de Sonar no bloquea el merge. El gate real ahora es `jacoco:check`.
 
 ---
 
@@ -332,8 +344,8 @@ activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay q
    estaba cubierto en el servicio. Pendiente menor: sacar `/api/v1/adaptive/*` de producción.
 4. Determinar el backend de prod vivo y su `SPRING_PROFILES_ACTIVE` (hallazgo 11); luego
    aplicarle `include-message: never`, Swagger off, `ddl-auto: validate` (hallazgos 5 y 6).
-5. Arreglar o retirar el gate de JaCoCo (hallazgo 3); quitar `-Dmaven.test.skip=true` del deploy
-   (hallazgo 4).
+5. **[hecho en el 3er cambio]** Gate de JaCoCo real (`jacoco:check` a 65%). Pendiente: quitar
+   `-Dmaven.test.skip=true` del deploy (hallazgo 4).
 6. Borrar `JwtService` y `security.SecurityConfig`; evaluar apagar
    `allow-bean-definition-overriding` (hallazgo 7).
 7. Consolidar `SecurityValidator` y `FamilySecurityEvaluator` en una sola implementación

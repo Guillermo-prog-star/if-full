@@ -85,6 +85,8 @@ maven_build_error.log
 
 # === Claude Code / AI Sessions ===
 .claude/
+.codex/
+AGENTS.md
 
 # === Python Artifacts ===
 **/__pycache__/

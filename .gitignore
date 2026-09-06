@@ -95,3 +95,7 @@ AGENTS.md
 
 # MySQL backups (no versionar dumps)
 backups/
+
+# Scripts locales de arranque (contienen secretos de dev inline)
+start-backend.bat
+backend/start-backend.bat

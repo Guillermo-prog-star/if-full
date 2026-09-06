@@ -19,7 +19,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | **Cerrado** (4º cambio) |
 | 5 | 🟠 Alto | Config | Fuga de mensajes de excepción y Swagger en perfiles `railway`/`render` | Abierto |
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
-| 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | Abierto |
+| 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | **Cerrado** (5º cambio; flag pendiente aparte) |
 | 8 | 🟡 Medio | Arquitectura | Dos implementaciones paralelas de autorización por familia | Abierto |
 | 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Abierto |
 | 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | Abierto |
@@ -240,16 +240,22 @@ en el arranque.
 
 ## 🟡 7. Código de seguridad muerto y duplicado
 
-- `security/JwtService.java` (105 líneas, "Arquitectura Criptográfica Maestra") — **sin usos**,
-  solo auto-referencias. Además deriva la clave como Base64 (`Decoders.BASE64.decode`) mientras
-  que el `JwtTokenProvider` real usa `secret.getBytes(UTF_8)` directo: dos criterios distintos
-  para la misma clave.
+- `security/JwtService.java` (105 líneas, "Arquitectura Criptográfica Maestra") — `@Service`
+  (bean vivo en el contexto) pero **ningún `@Autowired` lo inyecta**. Deriva la clave como Base64
+  (`Decoders.BASE64.decode`) mientras que el `JwtTokenProvider` real usa `secret.getBytes(UTF_8)`
+  directo: dos criterios distintos para la misma clave, y un segundo consumidor de `${integrity.security.jwt.secret}`.
 - `security/SecurityConfig.java` — `@Deprecated`, neutralizado, comentario "MODULAR DUPLICATE".
 - `spring.main.allow-bean-definition-overriding: true` está activo para tapar estos choques de
   beans. Mientras siga activo, cualquier duplicado futuro se silencia en vez de fallar.
 
-**Recomendación:** borrar `JwtService` y `security.SecurityConfig`; luego evaluar apagar
-`allow-bean-definition-overriding`.
+### Corrección aplicada (5º cambio)
+
+- Borrados `security/JwtService.java`, `security/JwtServiceTest.java` (23 casos que solo probaban
+  la clase muerta) y `security/SecurityConfig.java` (stub vacío, cero referencias).
+- `docs/architecture.md`: el flujo de autenticación citaba `JwtService.generateToken()` →
+  corregido a `AuthService.login()` / `JwtTokenProvider.generate()`.
+- **`allow-bean-definition-overriding` se deja como está** de momento: quitarlo requiere confirmar
+  que no hay otros duplicados de bean ocultos (más allá de estos dos). Follow-up separado.
 
 ---
 
@@ -358,8 +364,8 @@ problema, pero conviene alinearlo a 17 también cuando se toque el Dockerfile.
 5. **[hecho en el 3er cambio]** Gate de JaCoCo real (`jacoco:check` a 65%).
 6. **[hecho en el 4º cambio]** `deploy-backend.yml` corre `mvn verify -P ci` (hallazgo 4);
    ambos workflows en JDK 17 (hallazgo 12).
-7. Borrar `JwtService` y `security.SecurityConfig`; evaluar apagar
-   `allow-bean-definition-overriding` (hallazgo 7).
+7. **[hecho en el 5º cambio]** Borrados `JwtService` + su test + `security.SecurityConfig`
+   (hallazgo 7). Pendiente aparte: evaluar apagar `allow-bean-definition-overriding`.
 8. Consolidar `SecurityValidator` y `FamilySecurityEvaluator` en una sola implementación
    (hallazgo 8).
 9. Sincronizar `CLAUDE.md` (hallazgo 10); mover `@Transactional` fuera de los controllers

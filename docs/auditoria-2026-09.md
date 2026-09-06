@@ -21,8 +21,8 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
 | 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | **Cerrado** (5º cambio; flag pendiente aparte) |
 | 8 | 🟡 Medio | Arquitectura | Dos implementaciones paralelas de autorización por familia | Abierto |
-| 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Abierto |
-| 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | Abierto |
+| 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Re-evaluado — riesgo de `LazyInitException` en prod, no es cleanup (ver detalle) |
+| 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | **Cerrado** (6º cambio) |
 | 11 | 🟠 Alto | Config | Backend de producción inconsistente y sin responder (Railway parkeado, Render 503) | Abierto |
 | 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | **Cerrado** (4º cambio; workflows en 17) |
 
@@ -274,18 +274,29 @@ diverge según qué endpoint toque. Elegir uno y consolidar.
 ## 🟡 9. `@Transactional` en 4 controllers
 
 `checklist/TaskEvidenceController`, `common/NotificationController`, `family/FamilyController`,
-`member/MemberController` — frontera transaccional en la capa web. Mover a la capa de servicio.
+`member/MemberController` — frontera transaccional en la capa web.
+
+**Re-evaluado — NO es un cambio trivial "mover la anotación".** La mayoría son
+`@Transactional(readOnly = true)` sobre métodos GET, y el mapeo a DTO (`fromEntity(...)`) ocurre
+**dentro** de ese `@Transactional`, en el controller. Con `open-in-view: false` (perfil `prod`,
+`application-prod.yml:19`), mover la anotación al servicio dejaría el mapeo fuera de toda
+transacción → `LazyInitializationException` en producción. El fix correcto es empujar el mapeo a
+DTO **dentro** de los métodos transaccionales del servicio (que devuelvan DTOs, no entidades),
+método por método, verificando cada asociación lazy. La suite de tests corre con
+`open-in-view: true` (base `application.yml`) y **no** detectaría la regresión.
+
+Tratar como el hallazgo 8: pasada dedicada, no "cleanup". Prioridad baja.
 
 ---
 
 ## 🟡 10. `CLAUDE.md` desincronizado
 
-| Afirma | Real |
-|---|---|
-| Angular 18 | `@angular/core: ^17.3.0` |
-| Migraciones V1→V67 / "Próximo número disponible: V107" | V112 (V107–V112 sin documentar en la guía) |
-| ~120 clases de test | 200 |
-| Faltan V61 y V88 en la secuencia | (huecos no explicados) |
+| Afirma | Real | Estado |
+|---|---|---|
+| Angular 18 | `@angular/core: ^17.3.0` | ✅ corregido |
+| "Flyway (V1→V67)" / "Próximo número disponible: V107" | V112 (110 archivos) | ✅ corregido, V107–V112 documentadas |
+| ~120 clases de test | 199 | ✅ corregido |
+| Faltan V61 y V88 en la secuencia | (huecos no explicados) | ✅ anotado en la guía |
 
 ---
 
@@ -366,7 +377,8 @@ problema, pero conviene alinearlo a 17 también cuando se toque el Dockerfile.
    ambos workflows en JDK 17 (hallazgo 12).
 7. **[hecho en el 5º cambio]** Borrados `JwtService` + su test + `security.SecurityConfig`
    (hallazgo 7). Pendiente aparte: evaluar apagar `allow-bean-definition-overriding`.
-8. Consolidar `SecurityValidator` y `FamilySecurityEvaluator` en una sola implementación
-   (hallazgo 8).
-9. Sincronizar `CLAUDE.md` (hallazgo 10); mover `@Transactional` fuera de los controllers
-   (hallazgo 9).
+8. **[hecho en el 6º cambio]** `CLAUDE.md` sincronizado (hallazgo 10).
+9. Pasadas dedicadas (no "cleanup"), prioridad baja:
+   - Hallazgo 8 — consolidar `SecurityValidator` + `FamilySecurityEvaluator`.
+   - Hallazgo 9 — empujar el mapeo a DTO dentro de los métodos transaccionales del servicio
+     (riesgo `LazyInitException` en prod si se hace mal).

@@ -10,8 +10,8 @@ Proyecto de transformación familiar con IA adaptativa. Backend Spring Boot + Fr
 | Capa | Tecnología |
 |---|---|
 | Backend | Java 17 · Spring Boot 3.4.3 · Maven |
-| Frontend | Angular 18 · TypeScript · NGINX |
-| Base de datos | MySQL 8.4 · Flyway (V1→V67) |
+| Frontend | Angular 17.3 · TypeScript 5.4 · NGINX |
+| Base de datos | MySQL 8.4 · Flyway (V1→V112, huecos en V61 y V88) |
 | Mensajería | RabbitMQ 3 (CloudAMQP en prod) |
 | IA | Claude API (Anthropic) vía `ClaudeAiService` |
 | Auth | JWT (jjwt 0.12.6) + Spring Security |
@@ -31,9 +31,9 @@ if-full/
 │   │   ├── config/           # Spring Security, RabbitMQ, WebSocket, OpenAPI
 │   │   ├── common/           # SecurityValidator, EventPublisher, FamilyEventListener
 │   │   └── [44 módulos]/     # Ver mapa de módulos abajo
-│   ├── src/test/             # ~120 clases de test (JUnit 5 + Mockito strict)
+│   ├── src/test/             # ~199 clases de test (JUnit 5 + Mockito strict)
 │   └── src/main/resources/
-│       └── db/migration/     # Migraciones Flyway V1–V67
+│       └── db/migration/     # Migraciones Flyway V1–V112 (110 archivos; faltan V61, V88)
 ├── if-frontend/              # Angular SPA (Puerto 4200)
 ├── scripts/
 │   ├── backup-mysql.sh       # Backup con rotación
@@ -149,6 +149,7 @@ families
 - `V69` — snapshot idempotente del schema completo de producción 2026-06-16 (99 tablas)
 - `V70`–`V74` — alexa OAuth, chapter progress, project_documents, ICaF schema, ICaF questionnaires
 - `V75` — Banco de Trayectorias de Riesgo (4 tablas + seed 35 trayectorias + 2 docs técnicos)
+- `V76`–`V112` — ver el detalle en "Convenciones de migración Flyway" más abajo
 
 ---
 
@@ -282,7 +283,13 @@ Dashboard: https://sonarcloud.io/project/overview?id=Guillermo-prog-star_if-full
 - V104 — Fase 2 del programa de interoperabilidad: tabla `consents` (módulo nuevo `consent`), consentimiento formal separado de los flags `consented_by_email`/`consented_at` de `ecosystem`/`support` — cubre el caso de compartir con una institución externa (Ministerio, IPS) que no es un participante del ecosistema ni un miembro de la red de apoyo. Cada grant/revoke genera `AuditEvent` (`CONSENT_GRANTED`/`CONSENT_REVOKED`, nuevos en `AuditEventType`).
 - V105 — Streaks de sostenimiento en PLENO por dimensión ICF (ADR-003, hipótesis): agrega 4 columnas a `family_longitudinal_state` (`emociones_pleno_streak`, `comunicacion_pleno_streak`, `habitos_pleno_streak`, `tiempos_pleno_streak`). Identidad Familiar / Patrimonio Automático Familiar (PAF) no se autoevalúa ni es un sexto nivel de la Ruta de Conciencia — se infiere de sostener `dimScore >= 90` durante `>= 3` ciclos consecutivos, mismo patrón que `consecutiveImprovements`/`consecutiveDeteriorations`. Pendiente de validación empírica (Regla V1.1.1, ver V106).
 - V106 — `hypothesis_evidence` (ADR-004): tabla append-only, independiente del estado operacional, para registrar observaciones primarias que respaldan cualquier hipótesis del sistema (PAF, Determinantes Transformacionales, futuras). Generaliza la Regla V1.1.1 (antes acotada a `scenario_bank`/`scenario_validation_log`) como principio transversal: ningún estado operacional (mutable, sobrescribible) constituye evidencia — la evidencia vive aparte, versionada por hipótesis e instrumento. Deliberadamente sin bounded context `research`, roles ni Warehouse todavía — se posponen hasta que exista un segundo consumidor real más allá de PAF (ADR-005, pendiente).
-- Próximo número disponible: **V107**
+- V107 — `professional_follow_up_drafts` (ADR-006): traslada la generación del "resumen clínico" del Panel Profesional (antes plantilla Angular sin registro ni auditoría) a una entidad versionada en backend. `sourceSnapshot` congela los valores de `FamilyDataView` vistos al generar (estado operacional mutable).
+- V108 — corrige `professional_follow_up_drafts.assignment_id` (V107): no debía tener FK a `family_support_assignments` — `assignmentId` es polimórfico (`FamilySupportAssignment` **o** `FamilyEcosystemLink`, espacios de ID separados, ver `SupportNetworkService.getDataView()`).
+- V109 — mismo fix que V108 sobre `support_professional_notes.assignment_id` (V77): `addNote()` se extiende para aceptar también profesionales conectados vía `FamilyEcosystemLink` (verificado en vivo 2026-07-18).
+- V110 — `daily_vitality_log` (ADR-009, Fase 4 base biológica): única fase del método externo de 8 sin cobertura digital. Todos los campos numéricos NULL-ables (registro parcial por día).
+- V111 — `plan_acceptance_status` (ADR-010, Fase 0b): columnas de aceptación sobre `plans` (hoy `ImprovementPlan` se activa sin confirmación de la familia). No tabla nueva: la invariante "1 plan activo por familia" ya garantiza que no hay historial.
+- V112 — perspectivas múltiples sobre un mismo evento (H2, ADR-012): agrega autor a `journal_entries` (solo tenía `family_id`) y formaliza `critical_days.member_id` — existía en producción solo vía `ddl-auto=update`, ninguna migración lo declaraba sobre un schema Flyway puro.
+- Última migración: **V112**. Próximo número disponible: **V113** (verificar con `ls src/main/resources/db/migration/ | sort -V | tail -1` antes de crear una nueva).
 
 ---
 

@@ -21,7 +21,7 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
 | 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | **Cerrado** (5º cambio; flag pendiente aparte) |
 | 8 | 🟡 Medio | Arquitectura | Dos implementaciones paralelas de autorización por familia | Abierto |
-| 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Re-evaluado — riesgo de `LazyInitException` en prod, no es cleanup (ver detalle) |
+| 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Parcial (7º cambio: `FamilyController`); 3 restantes = pasada dedicada |
 | 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | **Cerrado** (6º cambio) |
 | 11 | 🟠 Alto | Config | Backend de producción inconsistente y sin responder (Railway parkeado, Render 503) | Abierto |
 | 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | **Cerrado** (4º cambio; workflows en 17) |
@@ -285,7 +285,26 @@ DTO **dentro** de los métodos transaccionales del servicio (que devuelvan DTOs,
 método por método, verificando cada asociación lazy. La suite de tests corre con
 `open-in-view: true` (base `application.yml`) y **no** detectaría la regresión.
 
-Tratar como el hallazgo 8: pasada dedicada, no "cleanup". Prioridad baja.
+### Parcial (7º cambio) — `FamilyController`
+
+Los 4 `@Transactional(readOnly = true)` de `FamilyController` eran **redundantes**: cada método
+solo llama a un servicio que ya es `@Transactional(readOnly = true)` y **devuelve un DTO**
+(`FamilyResponse`, `FamilyJourneyResponse`, `JourneyHistoryResponse`) — el controller no toca
+entidades ni asociaciones lazy después. Eliminados sin cambio de comportamiento.
+
+### Pendiente — los otros 3 controllers
+
+- **`NotificationController`** — habla directo al repositorio (sin servicio). `resolveFamilyId`
+  navega `user.getFamily()` (lazy) y `markAllRead` ejecuta un `@Modifying` bulk update: ambos
+  necesitan tx real. Fix: crear `NotificationService` con esos 3 métodos `@Transactional`.
+- **`MemberController`** — `getMyFamilyMembers` navega `user.getFamily()` (lazy) y devuelve
+  `List<FamilyMember>` (entidades); `createInMyFamily` tiene lógica multi-write
+  (`userRepository.saveAndFlush` + create) que pertenece a un servicio.
+- **`TaskEvidenceController`** — `getByFamily`/`getByTask` hacen `.map(TaskEvidenceResponse::fromEntity)`
+  dentro del `@Transactional`; el mapeo debe moverse a un método `@Transactional` del servicio.
+
+Estos 3 llevan riesgo de `LazyInitException` en prod (`open-in-view: false`) que la suite
+(OSIV on) no detecta. Pasada dedicada, prioridad baja.
 
 ---
 
@@ -378,7 +397,9 @@ problema, pero conviene alinearlo a 17 también cuando se toque el Dockerfile.
 7. **[hecho en el 5º cambio]** Borrados `JwtService` + su test + `security.SecurityConfig`
    (hallazgo 7). Pendiente aparte: evaluar apagar `allow-bean-definition-overriding`.
 8. **[hecho en el 6º cambio]** `CLAUDE.md` sincronizado (hallazgo 10).
-9. Pasadas dedicadas (no "cleanup"), prioridad baja:
-   - Hallazgo 8 — consolidar `SecurityValidator` + `FamilySecurityEvaluator`.
-   - Hallazgo 9 — empujar el mapeo a DTO dentro de los métodos transaccionales del servicio
-     (riesgo `LazyInitException` en prod si se hace mal).
+9. **[parcial en el 7º cambio]** Hallazgo 9 — quitados los 4 `@Transactional` redundantes de
+   `FamilyController`. Pendientes `NotificationController` / `MemberController` /
+   `TaskEvidenceController`: necesitan mover lógica (o el mapeo a DTO) al servicio, con riesgo
+   `LazyInitException` en prod → pasada dedicada.
+10. Pasada dedicada, prioridad baja: hallazgo 8 — consolidar `SecurityValidator` +
+    `FamilySecurityEvaluator` (modelos multi-familia vs una-familia).

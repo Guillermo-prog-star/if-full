@@ -13,5 +13,9 @@ spring:
 
 integrity:
   security:
+    jwt:
+      # application.yml ya no trae default; los tests de contexto lo necesitan explicito.
+      secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtaW50ZWdyaXR5LWZhbWlseS1taW4tMzItYnl0ZXM=
+      expiration-ms: 86400000
     family-home:
       id-secret: test-only-family-home-id-secret-not-for-production-use

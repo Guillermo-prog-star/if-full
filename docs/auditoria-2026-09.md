@@ -14,16 +14,16 @@ Baseline: 881 archivos Java · 79 `@RestController` · 200 clases de test · 108
 | # | Severidad | Área | Hallazgo | Estado |
 |---|---|---|---|---|
 | 1 | 🔴 Crítico | Seguridad | Control de acceso roto entre familias (IDOR) en 9 controllers + sub-recursos | **Cerrado** (`699d6f6` + 2º cambio) |
-| 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **En curso** (este cambio) |
+| 2 | 🔴 Crítico | Seguridad | `JWT_SECRET` con default público hardcodeado en `application.yml` | **Código cerrado** (`699d6f6`); var añadida a Railway 2026-09-06 — falta el Redeploy para que la tome |
 | 3 | 🟠 Alto | Build/CI | El quality gate de JaCoCo documentado no existe en `pom.xml` | **Cerrado** (3er cambio; gate a 65%, real 68.9%) |
-| 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | **Cerrado** (4º cambio) |
+| 4 | 🟠 Alto | Build/CI | El workflow de deploy no ejecuta tests | **Cerrado** (4º cambio) — sin efecto hasta reconectar Railway al repo (hallazgo 11) |
 | 5 | 🟠 Alto | Config | Fuga de mensajes de excepción y Swagger en perfiles `railway`/`render` | Abierto |
 | 6 | 🟠 Alto | Config | `ddl-auto: update` en producción conviviendo con Flyway | Abierto |
 | 7 | 🟡 Medio | Deuda | `JwtService` y `security.SecurityConfig` muertos; `allow-bean-definition-overriding` | **Cerrado** (5º cambio; flag pendiente aparte) |
 | 8 | 🟡 Medio | Arquitectura | Dos implementaciones paralelas de autorización por familia | Abierto |
 | 9 | 🟡 Medio | Deuda | `@Transactional` en 4 controllers | Parcial (7º cambio: `FamilyController`); 3 restantes = pasada dedicada |
 | 10 | 🟡 Medio | Docs | `CLAUDE.md` desincronizado (versión, nº migraciones, nº tests) | **Cerrado** (6º cambio) |
-| 11 | 🟠 Alto | Config | Backend de producción inconsistente y sin responder (Railway parkeado, Render 503) | Abierto |
+| 11 | 🔴 Crítico | Deploy | El pipeline documentado no existe: Railway corre `william195/if-backend:v1.1.9` (imagen Docker Hub de ~julio); `deploy-backend.yml` es config muerta | Abierto — requiere reconectar Railway al repo |
 | 12 | 🟡 Medio | Build/CI | JDK 17 (CI) vs JDK 21 (deploy) sin `--release` | **Cerrado** (4º cambio; workflows en 17) |
 
 Lo que está sano se documenta al final.
@@ -197,6 +197,10 @@ el despliegue. Coste: ~15-20 min extra por deploy — aceptable para esta plataf
 `quality.yml` (ambos corren en push a `main`), pero hace `deploy-backend.yml` autosuficiente en vez
 de depender de una condición cruzada entre workflows.
 
+> ⚠️ **Contingente al hallazgo 11:** hoy este workflow no despliega nada real (Railway corre una
+> imagen manual de Docker Hub, no el build del repo). Esta corrección solo protege prod si el
+> servicio de Railway se reconecta al repo de GitHub.
+
 ---
 
 ## 🟠 5. Fuga de mensajes de excepción y Swagger en `railway`/`render`
@@ -319,31 +323,57 @@ Estos 3 llevan riesgo de `LazyInitException` en prod (`open-in-view: false`) que
 
 ---
 
-## 🟠 11. Backend de producción — inconsistente y aparentemente caído
+## 🔴 11. El pipeline de despliegue documentado no existe — prod corre una imagen de hace 2 meses
 
-Configuración contradictoria:
+**Confirmado por inspección del panel de Railway (2026-09-06):**
 
-- `if-frontend/src/environments/environment.prod.ts` apunta a `if-backend-v1-0-0.onrender.com`.
-- `deploy-backend.yml` despliega a Railway; su paso de notificación cita `api.integrityfamily.online`.
-- `backend/Dockerfile` fija `ENV SPRING_PROFILES_ACTIVE=prod`; `backend/railway.toml` fuerza
-  `-Dspring.profiles.active=railway` en el `startCommand`. Dos perfiles distintos según qué
-  fichero de config lea Railway.
-- `application.yml` tiene perfiles `railway` **y** `render` coexistiendo.
+- Servicio `if-backend` (proyecto `steadfast-nurturing`, entorno `production`) →
+  **Settings → Source → "Source Image": `william195/if-backend:v1.1.9`** (imagen de Docker Hub).
+  **No** está conectado a ningún repo de GitHub. Railway solo **descarga y ejecuta** esa imagen;
+  no compila nada.
+- La imagen en Docker Hub (`hub.docker.com/r/william195/if-backend`) está **"Actualizado hace
+  2 meses"** (~julio 2026). Producción está congelada en ese punto: sin ADR-006→013, sin los
+  fixes de julio, sin esta auditoría.
+- **`deploy-backend.yml`, `railway.json` y `backend/railway.toml` son config muerta.** Describen
+  un build desde `backend/Dockerfile` en push a `main` que nunca ocurre. El deploy real es
+  manual: `docker build` + `docker push william195/if-backend:vX` en una máquina local, y
+  Railway lo recoge.
+- Dominios (Settings → Networking): `api.integrityfamily.online` ✓ y el apex `integrityfamily.online` ✓
+  — ambos verificados y sirviendo este servicio en el puerto 8080. URL interna:
+  `if-backend-production.up.railway.app`. (El sondeo HTTP previo que daba IP de parking de
+  Namecheap era caché DNS obsoleta del entorno sandbox; los dominios sí funcionan.)
+- `if-frontend/src/environments/environment.prod.ts` sigue apuntando a
+  `if-backend-v1-0-0.onrender.com` (503 sostenido) — un backend Render abandonado. El frontend
+  de prod le habla a un backend muerto, o el frontend real usa otra config.
+- Perfil activo: la imagen `v1.1.9` se construyó con `backend/Dockerfile`
+  (`ENV SPRING_PROFILES_ACTIVE=prod`) y no hay `SPRING_PROFILES_ACTIVE` entre las 17 variables
+  de Railway → corre perfil `prod` (a menos que el `startCommand` del `railway.toml` aplique,
+  cosa que no ocurre con Source Image). Con `prod`: `application-prod.yml` pone `ddl-auto: update`.
 
-Sondeo HTTP externo (2026-09-06):
+### Implicaciones
 
-- `api.integrityfamily.online` → resuelve a `198.54.117.242` (IP de **parking de Namecheap**).
-  El dominio custom no apunta a Railway. El target de `deploy-backend.yml` está efectivamente
-  a oscuras.
-- `if-backend-v1-0-0.onrender.com` → **HTTP 503 en todas las rutas** (incluida `/`) de forma
-  sostenida >2 min. No es un cold-start transitorio; el servicio de Render parece suspendido o
-  en crash-loop.
+1. **Mergear `feature/v1.2-micro-simulations` a `main` no despliega nada a prod.** El código
+   queda en GitHub; Railway sigue con la imagen de julio.
+2. **Los gates de CI (`quality.yml`, y el fix del hallazgo 4) no protegen lo que llega a prod**
+   mientras el deploy sea una imagen manual.
+3. El primer arranque del código actual (V112) aplicará **Flyway V107→V112** sobre la BD de
+   prod. Ahí muerde el riesgo de `ddl-auto: update` + deriva de schema (hallazgos 6). V112 está
+   escrita para tolerar `critical_days.member_id` preexistente por `ddl-auto`, pero el salto
+   debe probarse contra un dump de prod (`scripts/backup-mysql.sh` → restore en BD temporal)
+   antes de desplegar.
 
-Implicación: **ningún backend de producción conocido responde.** No se pudo confirmar el perfil
-activo (`prod` vs `railway`) por HTTP. Antes de cerrar los hallazgos 5 y 6 hay que:
-1. Determinar cuál es el backend vivo real (¿una URL `*.up.railway.app`? ¿otro servicio Render?).
-2. Confirmar su `SPRING_PROFILES_ACTIVE`.
-3. Decidir Railway **o** Render como único destino y borrar la config del otro.
+### Camino recomendado
+
+1. **Ya:** Deployments → ACTIVE → ⋮ → Redeploy. Re-lanza `v1.1.9` con las variables actuales →
+   recoge `JWT_SECRET` (el código de julio usa `${JWT_SECRET:default}`, el env-var gana) → prod
+   deja de usar el secreto público hoy. Cierra el hallazgo 2 en lo que corre.
+2. **Reconectar Railway al repo:** Settings → Source → Disconnect la imagen → Connect Repo
+   (GitHub, rama `main`, Dockerfile `backend/Dockerfile`). A partir de ahí push a `main` = build
+   + deploy real; `deploy-backend.yml` pasa a redundante. Retirar `william195/if-backend` de
+   Docker Hub.
+3. **Antes del primer deploy desde repo:** probar V107→V112 contra un restore del dump de prod.
+4. Arreglar `environment.prod.ts` (→ dominio Railway) y decomisionar el servicio Render + perfil
+   `render` de `application.yml`.
 
 ---
 
@@ -389,8 +419,11 @@ problema, pero conviene alinearlo a 17 también cuando se toque el Dockerfile.
    `checkErrorProtocol(Long)` + `checkAdjustment(UUID)` en `FamilySecurityEvaluator`, anotados en
    `ErrorProtocolController.update/close` y `AdaptiveController` approve/apply/reject. Guardian ya
    estaba cubierto en el servicio. Pendiente menor: sacar `/api/v1/adaptive/*` de producción.
-4. Determinar el backend de prod vivo y su `SPRING_PROFILES_ACTIVE` (hallazgo 11); luego
-   aplicarle `include-message: never`, Swagger off, `ddl-auto: validate` (hallazgos 5 y 6).
+4. **Hallazgo 11 (crítico) — reconstruir el pipeline de deploy:** (a) Redeploy del `v1.1.9`
+   actual para tomar `JWT_SECRET`; (b) reconectar el servicio Railway al repo de GitHub (build
+   desde `backend/Dockerfile`); (c) probar Flyway V107→V112 contra un dump de prod; (d) arreglar
+   `environment.prod.ts` y decomisionar Render. Solo entonces tienen sentido las correcciones de
+   perfil de los hallazgos 5 y 6 (`include-message: never`, Swagger off, `ddl-auto: validate`).
 5. **[hecho en el 3er cambio]** Gate de JaCoCo real (`jacoco:check` a 65%).
 6. **[hecho en el 4º cambio]** `deploy-backend.yml` corre `mvn verify -P ci` (hallazgo 4);
    ambos workflows en JDK 17 (hallazgo 12).
